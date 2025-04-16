@@ -29,7 +29,7 @@ GREY = p.Color("grey")
 p.init()
 
 # Tạo cửa sổ game
-screen = p.display.set_mode((WIDTH, HEIGHT))
+screen = p.display.set_mode((BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT))
 p.display.set_caption("Chess Game Menu")
 
 # Phông chữ
@@ -49,7 +49,7 @@ buttons_game_mode = {
 
 buttons_ai_level = {
     "Easy": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 4),
-    "Medium": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 2),
+
     "Hard": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 2 + 60),
 }
 
@@ -150,10 +150,6 @@ def ai_level_menu():
                         buttons_ai_level["Easy"][1] <= mouse_y <= buttons_ai_level["Easy"][1] + BUTTON_HEIGHT:
                     print("AI level: Easy")
                     return "easy"
-                elif buttons_ai_level["Medium"][0] <= mouse_x <= buttons_ai_level["Medium"][0] + BUTTON_WIDTH and \
-                        buttons_ai_level["Medium"][1] <= mouse_y <= buttons_ai_level["Medium"][1] + BUTTON_HEIGHT:
-                    print("AI level: Medium")
-                    return "medium"
                 elif buttons_ai_level["Hard"][0] <= mouse_x <= buttons_ai_level["Hard"][0] + BUTTON_WIDTH and \
                         buttons_ai_level["Hard"][1] <= mouse_y <= buttons_ai_level["Hard"][1] + BUTTON_HEIGHT:
                     print("AI level: Hard")
@@ -177,8 +173,8 @@ def main():
     The main driver for our code.
     This will handle user input and updating the graphics.
     """
-    p.init()
-    screen = p.display.set_mode((BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT))
+
+    # screen = p.display.set_mode((BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT))
     clock = p.time.Clock()
     screen.fill(p.Color("white"))
     game_state = ChessEngine.GameState()
@@ -275,7 +271,7 @@ def main():
                     ai_thinking = True
                     return_queue = Queue()  # used to pass data between threads
                     move_finder_process = Process(target=ChessAI.findBestMove,
-                                                  args=(game_state, valid_moves, return_queue))
+                                                  args=(game_state, valid_moves,ai_level, return_queue))
                     move_finder_process.start()
 
                 if not move_finder_process.is_alive():

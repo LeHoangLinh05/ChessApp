@@ -2,12 +2,8 @@
 Handling the AI moves.
 """
 import random
-import math
+import ChessBoard
 
-# Điểm Elo của AI
-ai_elo = 1500  # Điểm Elo ban đầu của AI
-opponent_elo = 1500  # Điểm Elo của đối thủ (có thể là AI khác hoặc người chơi)
-K = 32  # Hệ số điều chỉnh, có thể thay đổi
 piece_score = {"K": 0, "Q": 9, "R": 5, "B": 3, "N": 3, "p": 1}
 
 knight_scores = [[0.0, 0.1, 0.2, 0.2, 0.2, 0.2, 0.1, 0.0],
@@ -70,12 +66,19 @@ CHECKMATE = 1000
 STALEMATE = 0
 DEPTH = 3
 
+def get_depth_for_level(level):
+    """Trả về độ sâu tìm kiếm dựa trên cấp độ AI"""
+    if level == "easy":
+        return 2  # Tìm kiếm ít bước
+    elif level == "hard":
+        return 3 # Tìm kiếm sâu nhất
 
-def findBestMove(game_state, valid_moves, return_queue):
+def findBestMove(game_state, valid_moves,ai_level, return_queue):
     global next_move
     next_move = None
+    depth = get_depth_for_level(ai_level)  # Xác định độ sâu tìm kiếm theo cấp độ
     random.shuffle(valid_moves)
-    findMoveNegaMaxAlphaBeta(game_state, valid_moves, DEPTH, -CHECKMATE, CHECKMATE,
+    findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, -CHECKMATE, CHECKMATE,
                              1 if game_state.white_to_move else -1)
     return_queue.put(next_move)
 
@@ -135,63 +138,3 @@ def findRandomMove(valid_moves):
     """
     return random.choice(valid_moves)
 
-
-# Hàm tính toán Elo
-def calculate_elo(R_old, R_opponent, result, K=32):
-    """
-    Tính toán điểm Elo mới sau trận đấu.
-    R_old: Điểm Elo của người chơi trước trận đấu
-    R_opponent: Điểm Elo của đối thủ
-    result: Kết quả trận đấu (1 - thắng, 0.5 - hòa, 0 - thua)
-    """
-    # Tính điểm dự đoán
-    expected_score = 1 / (1 + 10 ** ((R_opponent - R_old) / 400))
-
-    # Cập nhật điểm Elo
-    new_elo = R_old + K * (result - expected_score)
-
-    return new_elo
-
-
-# Hàm tính điểm Elo sau mỗi trận đấu
-def play_game(ai_move, opponent_move):
-    """
-    Mô phỏng một trận đấu giữa AI và đối thủ và tính toán Elo.
-    ai_move và opponent_move là các tham số chỉ kết quả trận đấu (1 thắng, 0.5 hòa, 0 thua).
-    """
-    global ai_elo, opponent_elo
-
-    # Giả sử ai_move và opponent_move là kết quả trận đấu:
-    if ai_move == 1 and opponent_move == 0:  # AI thắng, đối thủ thua
-        result_ai = 1
-        result_opponent = 0
-    elif ai_move == 0 and opponent_move == 1:  # AI thua, đối thủ thắng
-        result_ai = 0
-        result_opponent = 1
-    else:  # Hòa
-        result_ai = 0.5
-        result_opponent = 0.5
-
-    # Cập nhật Elo cho AI và đối thủ
-    ai_elo = calculate_elo(ai_elo, opponent_elo, result_ai, K)
-    opponent_elo = calculate_elo(opponent_elo, ai_elo, result_opponent, K)
-
-    print(f"AI's Elo: {ai_elo:.2f}")
-    print(f"Opponent's Elo: {opponent_elo:.2f}")
-
-
-# Hàm đánh cờ giữa hai AI
-def ai_vs_ai():
-    """
-    AI vs AI, mô phỏng trận đấu và tính điểm Elo.
-    """
-    for i in range(10):  # Giả sử thực hiện 10 trận đấu
-        print(f"Trận đấu {i + 1}:")
-        ai_move = random.choice([0, 1, 0.5])  # AI 1 có thể thắng (1), thua (0), hoặc hòa (0.5)
-        opponent_move = random.choice([0, 1, 0.5])  # Đối thủ cũng có thể thắng (1), thua (0), hoặc hòa (0.5)
-        play_game(ai_move, opponent_move)
-        print("------------")
-
-
-# Gọi hàm ai_vs_ai để AI đánh với nhau
-ai_vs_ai()
