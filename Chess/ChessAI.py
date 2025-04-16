@@ -64,6 +64,10 @@ piece_position_scores = {"wN": knight_scores,
 
 CHECKMATE = 1000
 STALEMATE = 0
+# DEPTH = 3
+
+CHECKMATE = 1000
+STALEMATE = 0
 DEPTH = 3
 
 def get_depth_for_level(level):

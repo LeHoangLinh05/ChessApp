@@ -3,6 +3,7 @@ Main driver file.
 Handling user input.
 Displaying current GameStatus object.
 """
+import pygame
 import pygame as p
 import ChessEngine, ChessAI
 import sys
@@ -10,14 +11,14 @@ from multiprocessing import Process, Queue
 
 BOARD_WIDTH = BOARD_HEIGHT = 512
 MOVE_LOG_PANEL_WIDTH = 250
-MOVE_LOG_PANEL_HEIGHT = BOARD_HEIGHT
+MOVE_LOG_PANEL_HEIGHT = 380
 DIMENSION = 8
 SQUARE_SIZE = BOARD_HEIGHT // DIMENSION
 MAX_FPS = 15
 IMAGES = {}
 
 # Kích thước cửa sổ
-WIDTH, HEIGHT = 600, 400
+WIDTH, HEIGHT = BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT
 BUTTON_WIDTH, BUTTON_HEIGHT = 200, 50
 
 # Màu sắc
@@ -30,39 +31,51 @@ p.init()
 
 # Tạo cửa sổ game
 screen = p.display.set_mode((BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT))
-p.display.set_caption("Chess Game Menu")
+p.display.set_caption("Chess")
 
 # Phông chữ
-font = p.font.SysFont("Arial", 32)
+font = p.font.SysFont("Verdana", 23)
+move_log_font = p.font.SysFont("Arial", 30, False, False)
+wood_tex = p.image.load("assets/wood_texture.png").convert()
+wood_tex = p.transform.scale(wood_tex, (BUTTON_WIDTH, BUTTON_HEIGHT))
+background = p.image.load("images/background.jpg")
+background = p.transform.scale(background, (WIDTH, HEIGHT))
 
 # Các nút menu chính
 buttons_main = {
-    "Start Game": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 4),
-    "Quit": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 2 + 100)
+    "Start Game": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 4 - BUTTON_HEIGHT // 2 + 20),
+    "Quit": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 2 + 30 - BUTTON_HEIGHT // 2)
 }
 
 # Các nút menu chọn chế độ chơi và mức độ AI
 buttons_game_mode = {
-    "Player vs Player": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 4),
-    "Player vs AI": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 2),
+    "Player vs Player": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 4 - BUTTON_HEIGHT // 2 + 20),
+    "Player vs AI": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 2 + 30 - BUTTON_HEIGHT // 2),
 }
 
 buttons_ai_level = {
-    "Easy": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 4),
-
-    "Hard": (WIDTH // 2 - BUTTON_WIDTH // 2, HEIGHT // 2 + 60),
+    "Easy": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 4 - BUTTON_HEIGHT // 2 + 20),
+    "Hard": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 2 + 30 - BUTTON_HEIGHT // 2),
 }
 
 
-def draw_button(text, x, y):
-    """
-    Vẽ nút với văn bản trên màn hình
-    """
-    p.draw.rect(screen, GREY, (x, y, BUTTON_WIDTH, BUTTON_HEIGHT))
-    text_surface = font.render(text, True, BLACK)
-    screen.blit(text_surface, (
-    x + (BUTTON_WIDTH - text_surface.get_width()) // 2, y + (BUTTON_HEIGHT - text_surface.get_height()) // 2))
+def draw_button(screen, text, x, y):
+    screen.blit(wood_tex, (x, y))
+    light = (200, 180, 150)
+    dark  = ( 80,  60,  30)
+    p.draw.line(screen, light, (x, y), (x+BUTTON_WIDTH, y), 3)
+    p.draw.line(screen, light, (x, y), (x, y+BUTTON_HEIGHT), 3)
+    p.draw.line(screen, dark, (x, y+BUTTON_HEIGHT), (x+BUTTON_WIDTH, y+BUTTON_HEIGHT), 3)
+    p.draw.line(screen, dark, (x+BUTTON_WIDTH, y), (x+BUTTON_WIDTH, y+BUTTON_HEIGHT), 3)
 
+    text_surf = font.render(text, True, (250, 250, 247))
+    shadow = font.render(text, True, (0, 0, 0))
+    tx, ty = x + BUTTON_WIDTH//2, y + BUTTON_HEIGHT//2
+
+    shadow_rect = shadow.get_rect(center=(tx+2, ty+2))
+    screen.blit(shadow, shadow_rect)
+    text_rect = text_surf.get_rect(center=(tx, ty))
+    screen.blit(text_surf, text_rect)
 
 def main_menu():
     """
@@ -70,10 +83,10 @@ def main_menu():
     """
     while True:
         screen.fill(WHITE)
-
+        screen.blit(background, (0, 0))
         # Vẽ các nút menu chính
         for button_text, (x, y) in buttons_main.items():
-            draw_button(button_text, x, y)
+            draw_button(screen,button_text, x, y)
 
         for event in p.event.get():
             if event.type == p.QUIT:
@@ -102,10 +115,10 @@ def game_mode_menu():
     """
     while True:
         screen.fill(WHITE)
-
+        screen.blit(background, (0, 0))
         # Vẽ các nút chế độ chơi
         for button_text, (x, y) in buttons_game_mode.items():
-            draw_button(button_text, x, y)
+            draw_button(screen,button_text, x, y)
 
         for event in p.event.get():
             if event.type == p.QUIT:
@@ -134,10 +147,10 @@ def ai_level_menu():
     """
     while True:
         screen.fill(WHITE)
-
+        screen.blit(background, (0, 0))
         # Vẽ các nút mức độ AI
         for button_text, (x, y) in buttons_ai_level.items():
-            draw_button(button_text, x, y)
+            draw_button(screen,button_text, x, y)
 
         for event in p.event.get():
             if event.type == p.QUIT:
@@ -173,10 +186,9 @@ def main():
     The main driver for our code.
     This will handle user input and updating the graphics.
     """
-
-    # screen = p.display.set_mode((BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT))
+    screen = p.display.set_mode((BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT))
     clock = p.time.Clock()
-    screen.fill(p.Color("white"))
+    # screen.fill(p.Color("white"))
     game_state = ChessEngine.GameState()
     valid_moves = game_state.getValidMoves()
     move_made = False  # flag variable for when a move is made
@@ -240,33 +252,38 @@ def main():
                                     player_clicks = []
                             if not move_made:
                                 player_clicks = [square_selected]
+                    if e.button == 1:  # Kiểm tra nếu nhấn chuột trái
+                        mouse_pos = p.mouse.get_pos()
+                        if back_button_rect.collidepoint(mouse_pos):  # Nếu nhấn vào nút Back
+                            game_state.undoMove()  # Gọi hàm undoMove để hoàn lại bước đi trước
+                            move_made = True
+                            animate = False
+                            game_over = False
+                            if ai_thinking:
+                                move_finder_process.terminate()
+                                ai_thinking = False
+                            move_undone = True
 
-                # key handler
-                elif e.type == p.KEYDOWN:
-                    if e.key == p.K_z:  # undo when 'z' is pressed
-                        game_state.undoMove()
-                        move_made = True
-                        animate = False
-                        game_over = False
-                        if ai_thinking:
-                            move_finder_process.terminate()
-                            ai_thinking = False
-                        move_undone = True
-                    if e.key == p.K_r:  # reset the game when 'r' is pressed
-                        game_state = ChessEngine.GameState()
-                        valid_moves = game_state.getValidMoves()
-                        square_selected = ()
-                        player_clicks = []
-                        move_made = False
-                        animate = False
-                        game_over = False
-                        if ai_thinking:
-                            move_finder_process.terminate()
-                            ai_thinking = False
-                        move_undone = True
+                        if reset_button_rect.collidepoint(mouse_pos):
+                            game_state = ChessEngine.GameState()
+                            valid_moves = game_state.getValidMoves()
+                            square_selected = ()
+                            player_clicks = []
+                            move_made = False
+                            animate = False
+                            game_over = False
+                            if ai_thinking:
+                                move_finder_process.terminate()
+                                ai_thinking = False
+                            move_undone = True
+
+                        if surrender_button_rect.collidepoint(mouse_pos):
+                            game_over = True
+                            end_game_text = "Opponent wins by resign"
 
             # AI move finder (chỉ kích hoạt trong chế độ "Player vs AI")
             if not game_over and not human_turn and not move_undone and mode_result == "player_vs_ai":
+
                 if not ai_thinking:
                     ai_thinking = True
                     return_queue = Queue()  # used to pass data between threads
@@ -295,13 +312,18 @@ def main():
 
             if not game_over:
                 drawMoveLog(screen, game_state, move_log_font)
-
+                drawCustomPanel(screen, font)
+                back_button_rect = drawBackButton(screen, font, game_state)
+                reset_button_rect = drawResetButton(screen, font, game_state)
+                surrender_button_rect = drawSurrenderButton(screen, font, game_state)
+                # redo_button_rect = drawRedoButton(screen, font, game_state)
             if game_state.checkmate:
-                game_over = True
-                if game_state.white_to_move:
-                    drawEndGameText(screen, "Black wins by checkmate")
-                else:
-                    drawEndGameText(screen, "White wins by checkmate")
+                txt = ("Black" if game_state.white_to_move else "White") + " wins by checkmate"
+                drawEndGameText(screen, txt)
+            elif game_state.stalemate:
+                drawEndGameText(screen, "Stalemate")
+            elif game_over:
+                drawEndGameText(screen, end_game_text)
 
             elif game_state.stalemate:
                 game_over = True
@@ -335,28 +357,34 @@ def drawBoard(screen):
 
 def highlightSquares(screen, game_state, valid_moves, square_selected):
     """
-    Highlight square selected and moves for piece selected.
+    Highlight the square selected and draw a small translucent circle
+    on each square that is a valid destination.
     """
-    if (len(game_state.move_log)) > 0:
+    if len(game_state.move_log) > 0:
         last_move = game_state.move_log[-1]
         s = p.Surface((SQUARE_SIZE, SQUARE_SIZE))
         s.set_alpha(100)
         s.fill(p.Color('green'))
         screen.blit(s, (last_move.end_col * SQUARE_SIZE, last_move.end_row * SQUARE_SIZE))
+
+
     if square_selected != ():
         row, col = square_selected
-        if game_state.board[row][col][0] == (
-                'w' if game_state.white_to_move else 'b'):  # square_selected is a piece that can be moved
-            # highlight selected square
+
+        if game_state.board[row][col][0] == ('w' if game_state.white_to_move else 'b'):
+
             s = p.Surface((SQUARE_SIZE, SQUARE_SIZE))
-            s.set_alpha(100)  # transparency value 0 -> transparent, 255 -> opaque
-            s.fill(p.Color('blue'))
+            s.set_alpha(100)
+            s.fill(p.Color(192,204,68))
             screen.blit(s, (col * SQUARE_SIZE, row * SQUARE_SIZE))
-            # highlight moves from that square
-            s.fill(p.Color('yellow'))
+
             for move in valid_moves:
                 if move.start_row == row and move.start_col == col:
-                    screen.blit(s, (move.end_col * SQUARE_SIZE, move.end_row * SQUARE_SIZE))
+                    circle_surf = p.Surface((SQUARE_SIZE, SQUARE_SIZE), p.SRCALPHA)
+                    radius = SQUARE_SIZE // 8
+                    center = (SQUARE_SIZE // 2, SQUARE_SIZE // 2)
+                    p.draw.circle(circle_surf, (32,32,32,80), center, radius)
+                    screen.blit(circle_surf, (move.end_col * SQUARE_SIZE, move.end_row * SQUARE_SIZE))
 
 
 def drawPieces(screen, board):
@@ -370,13 +398,13 @@ def drawPieces(screen, board):
                 screen.blit(IMAGES[piece], p.Rect(column * SQUARE_SIZE, row * SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE))
 
 
-def drawMoveLog(screen, game_state, font):
+def drawMoveLog(screen, game_state, move_log_font):
     """
     Draws the move log.
 
     """
     move_log_rect = p.Rect(BOARD_WIDTH, 0, MOVE_LOG_PANEL_WIDTH, MOVE_LOG_PANEL_HEIGHT)
-    p.draw.rect(screen, p.Color('black'), move_log_rect)
+    p.draw.rect(screen, p.Color(40,36,36), move_log_rect)
     move_log = game_state.move_log
     move_texts = []
     for i in range(0, len(move_log), 2):
@@ -395,11 +423,35 @@ def drawMoveLog(screen, game_state, font):
             if i + j < len(move_texts):
                 text += move_texts[i + j]
 
-        text_object = font.render(text, True, p.Color('white'))
+        text_object = move_log_font.render(text, True, p.Color('white'))
         text_location = move_log_rect.move(padding, text_y)
         screen.blit(text_object, text_location)
         text_y += text_object.get_height() + line_spacing
 
+def drawCustomPanel(screen, font):
+    custom_panel_rect = p.Rect(BOARD_WIDTH, MOVE_LOG_PANEL_HEIGHT, MOVE_LOG_PANEL_WIDTH, HEIGHT - MOVE_LOG_PANEL_HEIGHT)  # Chúng ta vẽ panel tại vị trí khuyết
+    p.draw.rect(screen, p.Color(64,60,60), custom_panel_rect)
+
+def drawBackButton(screen, font, game_state):
+    back_button_rect = p.Rect(BOARD_WIDTH + 22, MOVE_LOG_PANEL_HEIGHT + 25, 100, 50)
+    back_button_image = p.image.load("images/back.png")
+    back_button_image = p.transform.smoothscale(back_button_image, (70, 70))
+    screen.blit(back_button_image, back_button_rect.topleft)
+    return back_button_rect
+
+def drawResetButton(screen, font, game_state):
+    reset_button_rect = p.Rect(BOARD_WIDTH + 92, MOVE_LOG_PANEL_HEIGHT + 25, 100, 50)
+    reset_button_image = p.image.load("images/reset.png")
+    reset_button_image = p.transform.smoothscale(reset_button_image, (70, 70))
+    screen.blit(reset_button_image, reset_button_rect.topleft)
+    return reset_button_rect
+
+def drawSurrenderButton(screen, font, game_state):
+    surrender_button_rect = p.Rect(BOARD_WIDTH + 162, MOVE_LOG_PANEL_HEIGHT + 25, 100, 50)
+    surrender_button_image = p.image.load("images/surrender.png")
+    surrender_button_image = p.transform.smoothscale(surrender_button_image, (70, 70))
+    screen.blit(surrender_button_image, surrender_button_rect.topleft)
+    return surrender_button_rect
 
 def drawEndGameText(screen, text):
     font = p.font.SysFont("Helvetica", 32, True, False)
