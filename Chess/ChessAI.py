@@ -64,7 +64,7 @@ piece_position_scores = {"wN": knight_scores,
 
 CHECKMATE = 1000
 STALEMATE = 0
-DEPTH = 3
+# DEPTH = 3
 
 def get_depth_for_level(level):
     """Trả về độ sâu tìm kiếm dựa trên cấp độ AI"""
@@ -76,14 +76,14 @@ def get_depth_for_level(level):
 def findBestMove(game_state, valid_moves,ai_level, return_queue):
     global next_move
     next_move = None
-    depth = get_depth_for_level(ai_level)  # Xác định độ sâu tìm kiếm theo cấp độ
+    original_depth = get_depth_for_level(ai_level)  # Xác định độ sâu tìm kiếm theo cấp độ
     random.shuffle(valid_moves)
-    findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, -CHECKMATE, CHECKMATE,
-                             1 if game_state.white_to_move else -1)
+    findMoveNegaMaxAlphaBeta(game_state, valid_moves, original_depth, -CHECKMATE, CHECKMATE,
+                             1 if game_state.white_to_move else -1, original_depth)
     return_queue.put(next_move)
 
 
-def findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, alpha, beta, turn_multiplier):
+def findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, alpha, beta, turn_multiplier, original_depth):
     global next_move
     if depth == 0:
         return turn_multiplier * scoreBoard(game_state)
@@ -92,10 +92,10 @@ def findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, alpha, beta, turn_m
     for move in valid_moves:
         game_state.makeMove(move)
         next_moves = game_state.getValidMoves()
-        score = -findMoveNegaMaxAlphaBeta(game_state, next_moves, depth - 1, -beta, -alpha, -turn_multiplier)
+        score = -findMoveNegaMaxAlphaBeta(game_state, next_moves, depth - 1, -beta, -alpha, -turn_multiplier, original_depth)
         if score > max_score:
             max_score = score
-            if depth == DEPTH:
+            if depth == original_depth:
                 next_move = move
         game_state.undoMove()
         if max_score > alpha:
