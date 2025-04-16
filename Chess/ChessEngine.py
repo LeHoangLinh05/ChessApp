@@ -91,61 +91,6 @@ class GameState:
         self.castle_rights_log.append(CastleRights(self.current_castling_rights.wks, self.current_castling_rights.bks,
                                                    self.current_castling_rights.wqs, self.current_castling_rights.bqs))
 
-    # def undoMove(self):
-    #     """
-    #     Undo the last two moves: both player's and opponent's move.
-    #     """
-    #     if len(self.move_log) != 0:  # Make sure there are at least 2 moves to undo
-    #         # Undo the second-to-last move (your move)
-    #         move = self.move_log.pop()  # Undo opponent's move (last move in the log)
-    #         self.board[move.start_row][move.start_col] = move.piece_moved
-    #         self.board[move.end_row][move.end_col] = move.piece_captured
-    #         self.white_to_move = not self.white_to_move  # Swap back to your turn
-    #
-    #         # Lưu nước đi của opponent vào undo_stack
-    #         self.undo_stack.append(move)
-    #
-    #         # Undo the first move (your move)
-    #         move = self.move_log.pop()  # Undo your move (second-to-last move in the log)
-    #         self.board[move.start_row][move.start_col] = move.piece_moved
-    #         self.board[move.end_row][move.end_col] = move.piece_captured
-    #         self.white_to_move = not self.white_to_move  # Swap back to the opponent's turn
-    #
-    #         # Lưu nước đi của player vào undo_stack
-    #         self.undo_stack.append(move)
-    #
-    #         # Update the king's position if needed
-    #         if move.piece_moved == "wK":
-    #             self.white_king_location = (move.start_row, move.start_col)
-    #         elif move.piece_moved == "bK":
-    #             self.black_king_location = (move.start_row, move.start_col)
-    #
-    #         # Undo en passant move (if applicable)
-    #         if move.is_enpassant_move:
-    #             self.board[move.end_row][move.end_col] = "--"  # leave landing square blank
-    #             self.board[move.start_row][move.end_col] = move.piece_captured
-    #
-    #         self.enpassant_possible_log.pop()
-    #         self.enpassant_possible = self.enpassant_possible_log[-1]
-    #
-    #         # Undo castle rights
-    #         self.castle_rights_log.pop()  # get rid of the new castle rights from the move we are undoing
-    #         self.current_castling_rights = self.castle_rights_log[
-    #             -1]  # set the current castle rights to the last one in the list
-    #
-    #         # Undo the castle move (if applicable)
-    #         if move.is_castle_move:
-    #             if move.end_col - move.start_col == 2:  # king-side
-    #                 self.board[move.end_row][move.end_col + 1] = self.board[move.end_row][move.end_col - 1]
-    #                 self.board[move.end_row][move.end_col - 1] = '--'
-    #             else:  # queen-side
-    #                 self.board[move.end_row][move.end_col - 2] = self.board[move.end_row][move.end_col + 1]
-    #                 self.board[move.end_row][move.end_col + 1] = '--'
-    #
-    #         # Reset checkmate and stalemate
-    #         self.checkmate = False
-    #         self.stalemate = False
-
     def undoMove(self):
         """
         Undo the last move
@@ -182,58 +127,44 @@ class GameState:
                     self.board[move.end_row][move.end_col + 1] = '--'
             self.checkmate = False
             self.stalemate = False
-    # def redoMove(self):
+
+    # def undoMove(self):
     #     """
-    #     Redo the last two undone moves.
+    #     Undo the last move
     #     """
-    #     if len(self.undo_stack) > 1:  # Ensure there are at least 2 undone moves to redo
-    #         # Redo the first undone move (your move)
-    #         move = self.undo_stack.pop()  # Get the first undone move (second-to-last move in the log)
-    #         self.move_log.append(move)  # Add it back to the move_log
-    #
-    #         # Update the board with this move
+    #     if len(self.move_log) != 0:  # make sure that there is a move to undo
+    #         move = self.move_log.pop()
     #         self.board[move.start_row][move.start_col] = move.piece_moved
     #         self.board[move.end_row][move.end_col] = move.piece_captured
-    #         self.white_to_move = not self.white_to_move  # Swap back to opponent's turn
-    #
-    #         # Redo the second undone move (opponent's move)
-    #         move = self.undo_stack.pop()  # Get the second undone move (last move in the log)
-    #         self.move_log.append(move)  # Add it back to the move_log
-    #
-    #         # Update the board with this move
-    #         self.board[move.start_row][move.start_col] = move.piece_moved
-    #         self.board[move.end_row][move.end_col] = move.piece_captured
-    #         self.white_to_move = not self.white_to_move  # Swap back to your turn
-    #
-    #         # Update the king's position if needed
+    #         self.white_to_move = not self.white_to_move  # swap players
+    #         # update the king's position if needed
     #         if move.piece_moved == "wK":
     #             self.white_king_location = (move.start_row, move.start_col)
     #         elif move.piece_moved == "bK":
     #             self.black_king_location = (move.start_row, move.start_col)
-    #
-    #         # Redo en passant move (if applicable)
+    #         # undo en passant move
     #         if move.is_enpassant_move:
-    #             self.board[move.end_row][move.end_col] = "--"  # Leave landing square blank
+    #             self.board[move.end_row][move.end_col] = "--"  # leave landing square blank
     #             self.board[move.start_row][move.end_col] = move.piece_captured
     #
-    #         # Update en passant state
-    #         self.enpassant_possible_log.append(self.enpassant_possible)  # Add back en passant state
+    #         self.enpassant_possible_log.pop()
+    #         self.enpassant_possible = self.enpassant_possible_log[-1]
     #
-    #         # Redo castle rights
-    #         self.castle_rights_log.append(self.current_castling_rights)  # Add back castle rights state
-    #
-    #         # Redo the castle move (if applicable)
+    #         # undo castle rights
+    #         self.castle_rights_log.pop()  # get rid of the new castle rights from the move we are undoing
+    #         self.current_castling_rights = self.castle_rights_log[
+    #             -1]  # set the current castle rights to the last one in the list
+    #         # undo the castle move
     #         if move.is_castle_move:
-    #             if move.end_col - move.start_col == 2:  # King-side castle
+    #             if move.end_col - move.start_col == 2:  # king-side
     #                 self.board[move.end_row][move.end_col + 1] = self.board[move.end_row][move.end_col - 1]
     #                 self.board[move.end_row][move.end_col - 1] = '--'
-    #             else:  # Queen-side castle
+    #             else:  # queen-side
     #                 self.board[move.end_row][move.end_col - 2] = self.board[move.end_row][move.end_col + 1]
     #                 self.board[move.end_row][move.end_col + 1] = '--'
-    #
-    #         # Reset checkmate and stalemate
     #         self.checkmate = False
     #         self.stalemate = False
+
 
     def updateCastleRights(self, move):
         """
