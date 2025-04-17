@@ -35,7 +35,7 @@ p.display.set_caption("Chess")
 
 # Phông chữ
 font = p.font.SysFont("Verdana", 23)
-move_log_font = p.font.SysFont("Arial", 30, False, False)
+move_log_font = p.font.SysFont("Verdana", 30, False, False)
 wood_tex = p.image.load("assets/wood_texture.png").convert()
 wood_tex = p.transform.scale(wood_tex, (BUTTON_WIDTH, BUTTON_HEIGHT))
 background = p.image.load("images/background.jpg")
@@ -310,10 +310,10 @@ def main():
                 if not game_over:
                     drawMoveLog(screen, game_state, move_log_font)
                     drawCustomPanel(screen, font)
-                    # back_button_rect = drawBackButton(screen, font, game_state)
-                    # reset_button_rect = drawResetButton(screen, font, game_state)
-                    # surrender_button_rect = drawSurrenderButton(screen, font, game_state)
-                    # return_button_rect = drawReturnButton(screen, font, game_state)
+                    back_button_rect = drawBackButton(screen, font, game_state)
+                    reset_button_rect = drawResetButton(screen, font, game_state)
+                    surrender_button_rect = drawSurrenderButton(screen, font, game_state)
+                    return_button_rect = drawReturnButton(screen, font, game_state)
 
                 if game_state.checkmate:
                     game_over = True
@@ -408,14 +408,14 @@ def drawMoveLog(screen, game_state, move_log_font):
     move_log = game_state.move_log
     move_texts = []
     for i in range(0, len(move_log), 2):
-        move_string = str(i // 2 + 1) + '. ' + str(move_log[i]) + " "
+        move_string = str(i // 2 + 1) + '. ' + str(move_log[i]) + "  "
         if i + 1 < len(move_log):
-            move_string += str(move_log[i + 1]) + "  "
+            move_string += str(move_log[i + 1]) + "     "
         move_texts.append(move_string)
 
     moves_per_row = 3
-    padding = 5
-    line_spacing = 2
+    padding = 10
+    line_spacing = 6
     text_y = padding
     for i in range(0, len(move_texts), moves_per_row):
         text = ""
