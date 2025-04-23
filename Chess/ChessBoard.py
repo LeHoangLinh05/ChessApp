@@ -20,7 +20,7 @@ IMAGES = {}
 # Kích thước cửa sổ
 WIDTH, HEIGHT = BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT
 BUTTON_WIDTH, BUTTON_HEIGHT = 200, 50
-
+scroll_y = 0
 # Màu sắc
 WHITE = p.Color("white")
 BLACK = p.Color("black")
@@ -173,8 +173,6 @@ def loadImages():
 
 
 def main():
-    # p.init()
-    # screen = p.display.set_mode((BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT))
     clock = p.time.Clock()
     font = p.font.SysFont("Arial", 14, False, False)
 
@@ -213,6 +211,7 @@ def main():
                 human_turn = (game_state.white_to_move and player_one) or (not game_state.white_to_move and player_two)
 
                 for e in p.event.get():
+                    handle_scroll(e)
                     if e.type == p.QUIT:
                         p.quit()
                         sys.exit()
@@ -282,12 +281,14 @@ def main():
                 # AI move finder
                 if not game_over and not human_turn and not move_undone and mode_result == "player_vs_ai":
                     if not ai_thinking:
+                        print("AI is thinking...")
                         ai_thinking = True
                         return_queue = Queue()
-                        move_finder_process = Process(target=ChessAI.findBestMove,
+                        move_finder_process = Process(target=ChessAI.findBestMoveWithStockfish,
                                                       args=(game_state, valid_moves, ai_level, return_queue))
                         move_finder_process.start()
 
+                    # Đảm bảo tiến trình AI đã hoàn tất
                     if not move_finder_process.is_alive():
                         ai_move = return_queue.get()
                         if ai_move is None:
@@ -295,7 +296,8 @@ def main():
                         game_state.makeMove(ai_move)
                         move_made = True
                         animate = True
-                        ai_thinking = False
+                        ai_thinking = False  # Đặt lại ai_thinking sau khi AI hoàn thành
+
 
                 if move_made:
                     if animate:
@@ -401,32 +403,47 @@ def drawPieces(screen, board):
 def drawMoveLog(screen, game_state, move_log_font):
     """
     Draws the move log.
-
     """
+    global scroll_y
     move_log_rect = p.Rect(BOARD_WIDTH, 0, MOVE_LOG_PANEL_WIDTH, MOVE_LOG_PANEL_HEIGHT)
-    p.draw.rect(screen, p.Color(40,36,36), move_log_rect)
+    p.draw.rect(screen, p.Color(40, 36, 36), move_log_rect)
     move_log = game_state.move_log
     move_texts = []
+
     for i in range(0, len(move_log), 2):
-        move_string = str(i // 2 + 1) + '. ' + str(move_log[i]) + "  "
+        move_string = f"{i // 2 + 1}. {move_log[i]}  "
         if i + 1 < len(move_log):
-            move_string += str(move_log[i + 1]) + "     "
+            move_string += f"{move_log[i + 1]}     "
         move_texts.append(move_string)
 
     moves_per_row = 3
     padding = 10
     line_spacing = 6
-    text_y = padding
-    for i in range(0, len(move_texts), moves_per_row):
-        text = ""
-        for j in range(moves_per_row):
-            if i + j < len(move_texts):
-                text += move_texts[i + j]
+    text_y = padding - scroll_y
 
+
+    for i in range(0, len(move_texts), moves_per_row):
+        text = "".join(move_texts[i:i + moves_per_row])
         text_object = move_log_font.render(text, True, p.Color('white'))
         text_location = move_log_rect.move(padding, text_y)
         screen.blit(text_object, text_location)
         text_y += text_object.get_height() + line_spacing
+
+def handle_scroll(event):
+
+    global scroll_y
+    if event.type == p.MOUSEBUTTONDOWN:
+        if event.button == 4:# Scroll up
+            scroll_y = max(0, scroll_y - 20)
+        elif event.button == 5: # Scroll down
+            scroll_y += 20
+
+
+for event in p.event.get():
+     handle_scroll(event)
+
+
+
 
 def drawCustomPanel(screen, font):
     custom_panel_rect = p.Rect(BOARD_WIDTH, MOVE_LOG_PANEL_HEIGHT, MOVE_LOG_PANEL_WIDTH, HEIGHT - MOVE_LOG_PANEL_HEIGHT)  # Chúng ta vẽ panel tại vị trí khuyết

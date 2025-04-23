@@ -2,7 +2,7 @@
 Handling the AI moves.
 """
 import random
-import ChessBoard
+import chess.engine
 
 piece_score = {"K": 0, "Q": 9, "R": 5, "B": 3, "N": 3, "p": 1}
 
@@ -76,6 +76,53 @@ def get_depth_for_level(level):
         return 2  # Tìm kiếm ít bước
     elif level == "hard":
         return 3 # Tìm kiếm sâu nhất
+
+
+def findBestMoveWithStockfish(game_state, valid_moves, ai_level, return_queue):
+    stockfish_path = "D:\\AI\\Chess\\ChessApp\\Chess\\stockfish\\stockfish-windows-x86-64-avx2.exe"
+
+    try:
+        with chess.engine.SimpleEngine.popen_uci(stockfish_path) as engine:
+            board = chess.Board()
+
+            # Reconstruct the board state from the game's move log
+            for move in game_state.move_log:
+                from_square = chess.square(move.start_col, 7 - move.start_row)
+                to_square = chess.square(move.end_col, 7 - move.end_row)
+                try:
+                    board.push(chess.Move(from_square, to_square))
+                except chess.IllegalMoveError:
+                    print(f"Warning: Couldn't reconstruct move {move.getChessNotation()}")
+                    return_queue.put(random.choice(valid_moves) if valid_moves else None)
+                    return
+
+            print(f"Current FEN: {board.fen()}")
+
+            if not game_state.white_to_move:  # It's Black's turn (AI's turn)
+                time_limit = 1.0 if ai_level == "easy" else 3.0  # Đặt thời gian tùy theo cấp độ AI
+                try:
+                    result = engine.play(board, chess.engine.Limit(time=time_limit))
+                    if result.move:
+                        # Convert Stockfish move to our move format
+                        start_row = 7 - chess.square_rank(result.move.from_square)
+                        start_col = chess.square_file(result.move.from_square)
+                        end_row = 7 - chess.square_rank(result.move.to_square)
+                        end_col = chess.square_file(result.move.to_square)
+                        # Find the corresponding move in valid_moves
+                        for move in valid_moves:
+                            if (move.start_row == start_row and move.start_col == start_col and
+                                move.end_row == end_row and move.end_col == end_col):
+                                return_queue.put(move)
+                                return
+                        # If no matching move found, return a random valid move
+                        return_queue.put(random.choice(valid_moves) if valid_moves else None)
+                except chess.engine.EngineError as e:
+                    print(f"Stockfish error: {e}")
+                    return_queue.put(random.choice(valid_moves) if valid_moves else None)
+    except Exception as e:
+        print(f"Error in Stockfish AI: {e}")
+        return_queue.put(random.choice(valid_moves) if valid_moves else None)
+
 
 def findBestMove(game_state, valid_moves,ai_level, return_queue):
     global next_move

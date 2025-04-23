@@ -640,35 +640,51 @@ class Move:
             return self.moveID == other.moveID
         return False
 
+    def getRankFile(self, row, col):
+        """
+        Convert the row and column indices to UCI format (e.g., 'a1', 'e4')
+        """
+        return self.cols_to_files[col] + self.rows_to_ranks[row]
+
     def getChessNotation(self):
+        """
+        Generate the UCI notation for the move.
+        """
+        # Pawn promotion
         if self.is_pawn_promotion:
             return self.getRankFile(self.end_row, self.end_col) + "Q"
+
+        # Castling
         if self.is_castle_move:
             if self.end_col == 1:
                 return "0-0-0"
             else:
                 return "0-0"
+
+        # En-passant move
         if self.is_enpassant_move:
             return self.getRankFile(self.start_row, self.start_col)[0] + "x" + self.getRankFile(self.end_row,
                                                                                                 self.end_col) + " e.p."
+
+        # Regular capture move
         if self.piece_captured != "--":
             if self.piece_moved[1] == "p":
                 return self.getRankFile(self.start_row, self.start_col)[0] + "x" + self.getRankFile(self.end_row,
                                                                                                     self.end_col)
             else:
                 return self.piece_moved[1] + "x" + self.getRankFile(self.end_row, self.end_col)
+
+        # Regular non-capture move
         else:
             if self.piece_moved[1] == "p":
                 return self.getRankFile(self.end_row, self.end_col)
             else:
                 return self.piece_moved[1] + self.getRankFile(self.end_row, self.end_col)
 
-        # TODO Disambiguating moves
-
-    def getRankFile(self, row, col):
-        return self.cols_to_files[col] + self.rows_to_ranks[row]
-
     def __str__(self):
+        """
+        Return the UCI notation of the move (e.g., 'e2e4', 'Nf3', '0-0')
+        """
         if self.is_castle_move:
             return "0-0" if self.end_col == 6 else "0-0-0"
 
@@ -684,3 +700,4 @@ class Move:
         if self.is_capture:
             move_string += "x"
         return move_string + end_square
+
