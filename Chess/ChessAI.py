@@ -64,18 +64,8 @@ piece_position_scores = {"wN": knight_scores,
 
 CHECKMATE = 1000
 STALEMATE = 0
-# DEPTH = 3
-
-CHECKMATE = 1000
-STALEMATE = 0
 DEPTH = 3
 
-def get_depth_for_level(level):
-    """Trả về độ sâu tìm kiếm dựa trên cấp độ AI"""
-    if level == "easy":
-        return 2  # Tìm kiếm ít bước
-    elif level == "hard":
-        return 3 # Tìm kiếm sâu nhất
 
 
 def findBestMoveWithStockfish(game_state, valid_moves, ai_level, return_queue):
@@ -124,14 +114,14 @@ def findBestMoveWithStockfish(game_state, valid_moves, ai_level, return_queue):
         return_queue.put(random.choice(valid_moves) if valid_moves else None)
 
 
-def findBestMove(game_state, valid_moves,ai_level, return_queue):
-    global next_move
-    next_move = None
-    depth = get_depth_for_level(ai_level)  # Xác định độ sâu tìm kiếm theo cấp độ
-    random.shuffle(valid_moves)
-    findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, -CHECKMATE, CHECKMATE,
-                             1 if game_state.white_to_move else -1)
-    return_queue.put(next_move)
+# def findBestMove(game_state, valid_moves,ai_level, return_queue):
+#     global next_move
+#     next_move = None
+#     depth = get_depth_for_level(ai_level)  # Xác định độ sâu tìm kiếm theo cấp độ
+#     random.shuffle(valid_moves)
+#     findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, -CHECKMATE, CHECKMATE,
+#                              1 if game_state.white_to_move else -1)
+#     return_queue.put(next_move)
 
 
 def findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, alpha, beta, turn_multiplier):
