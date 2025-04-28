@@ -284,7 +284,7 @@ def main():
                         print("AI is thinking...")
                         ai_thinking = True
                         return_queue = Queue()
-                        move_finder_process = Process(target=ChessAI.findBestMoveWithStockfish,
+                        move_finder_process = Process(target=ChessAI.findBestMoveWithAI,
                                                       args=(game_state, valid_moves, ai_level, return_queue))
                         move_finder_process.start()
 

@@ -128,43 +128,6 @@ class GameState:
             self.checkmate = False
             self.stalemate = False
 
-    # def undoMove(self):
-    #     """
-    #     Undo the last move
-    #     """
-    #     if len(self.move_log) != 0:  # make sure that there is a move to undo
-    #         move = self.move_log.pop()
-    #         self.board[move.start_row][move.start_col] = move.piece_moved
-    #         self.board[move.end_row][move.end_col] = move.piece_captured
-    #         self.white_to_move = not self.white_to_move  # swap players
-    #         # update the king's position if needed
-    #         if move.piece_moved == "wK":
-    #             self.white_king_location = (move.start_row, move.start_col)
-    #         elif move.piece_moved == "bK":
-    #             self.black_king_location = (move.start_row, move.start_col)
-    #         # undo en passant move
-    #         if move.is_enpassant_move:
-    #             self.board[move.end_row][move.end_col] = "--"  # leave landing square blank
-    #             self.board[move.start_row][move.end_col] = move.piece_captured
-    #
-    #         self.enpassant_possible_log.pop()
-    #         self.enpassant_possible = self.enpassant_possible_log[-1]
-    #
-    #         # undo castle rights
-    #         self.castle_rights_log.pop()  # get rid of the new castle rights from the move we are undoing
-    #         self.current_castling_rights = self.castle_rights_log[
-    #             -1]  # set the current castle rights to the last one in the list
-    #         # undo the castle move
-    #         if move.is_castle_move:
-    #             if move.end_col - move.start_col == 2:  # king-side
-    #                 self.board[move.end_row][move.end_col + 1] = self.board[move.end_row][move.end_col - 1]
-    #                 self.board[move.end_row][move.end_col - 1] = '--'
-    #             else:  # queen-side
-    #                 self.board[move.end_row][move.end_col - 2] = self.board[move.end_row][move.end_col + 1]
-    #                 self.board[move.end_row][move.end_col + 1] = '--'
-    #         self.checkmate = False
-    #         self.stalemate = False
-
 
     def updateCastleRights(self, move):
         """
