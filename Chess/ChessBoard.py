@@ -9,6 +9,8 @@ import ChessEngine, ChessAI
 import sys
 from multiprocessing import Process, Queue
 
+from Chess import Chess_AI
+
 BOARD_WIDTH = BOARD_HEIGHT = 512
 MOVE_LOG_PANEL_WIDTH = 250
 MOVE_LOG_PANEL_HEIGHT = 380
@@ -284,8 +286,8 @@ def main():
                         print("AI is thinking...")
                         ai_thinking = True
                         return_queue = Queue()
-                        move_finder_process = Process(target=ChessAI.findBestMoveWithAI,
-                                                      args=(game_state, valid_moves, ai_level, return_queue))
+                        move_finder_process = Process(target=Chess_AI.minimax_root,
+                                                      args=(game_state, ai_level, return_queue))
                         move_finder_process.start()
 
                     # Đảm bảo tiến trình AI đã hoàn tất

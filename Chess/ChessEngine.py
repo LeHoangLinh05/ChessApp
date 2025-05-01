@@ -664,3 +664,14 @@ class Move:
             move_string += "x"
         return move_string + end_square
 
+    def __hash__(self):
+        # Tạo giá trị băm từ các thuộc tính của nước đi (start_row, start_col, end_row, end_col)
+        return hash((self.start_row, self.start_col, self.end_row, self.end_col))
+
+    def __eq__(self, other):
+        # Kiểm tra xem hai đối tượng Move có giống nhau không
+        if isinstance(other, Move):
+            return (self.start_row, self.start_col, self.end_row, self.end_col) == (
+            other.start_row, other.start_col, other.end_row, other.end_col)
+        return False
+
