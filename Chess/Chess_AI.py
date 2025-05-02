@@ -6,12 +6,33 @@ import tensorflow as tf
 import random
 from ChessEngine import *
 
-path_to_model = 'D:/AI/Chess/ChessApp/Chess/estimator/morphy'
+path_to_model = 'D:/AI/Chess/ChessApp/Chess/model/morphy'
 
 global model
-model = tf.saved_model.load(path_to_model)
+# model = tf.saved_model.load(path_to_model)
+EXPECTED_MODEL_COLUMNS = []
+try:
+    model = tf.saved_model.load(path_to_model)
+    print("Model đã được tải thành công.")
+    infer = model.signatures['serving_default']
+    input_details = infer.structured_input_signature[1]
+    EXPECTED_MODEL_COLUMNS = list(input_details.keys()) # Gán giá trị sau khi tải thành công
+    print(f"\nTotal expected features: {len(EXPECTED_MODEL_COLUMNS)}")
+    if len(EXPECTED_MODEL_COLUMNS) != 192:
+         print(f"CẢNH BÁO: Số lượng đặc trưng mong đợi ({len(EXPECTED_MODEL_COLUMNS)}) không phải 192!")
+    # ... (Phần in signature khác giữ nguyên nếu muốn) ...
+except Exception as e:
+    print(f"Lỗi nghiêm trọng khi tải model hoặc lấy signature từ '{path_to_model}': {e}")
+    raise RuntimeError(f"Không thể tải model từ '{path_to_model}'") from e
 
-
+# --- Định nghĩa cách mã hóa quân cờ ---
+piece_to_int = {
+    '--': 0, 'wp': 1, 'wN': 2, 'wB': 3, 'wR': 4, 'wQ': 5, 'wK': 6,
+    'bp': -1, 'bN': -2, 'bB': -3, 'bR': -4, 'bQ': -5, 'bK': -6
+}
+piece_to_float = {k: float(v) for k, v in piece_to_int.items()}
+def encode_piece(piece_str):
+    return piece_to_float.get(piece_str, 0.0)
 
 # def predict(df_eval, imported_model):
 #     """Return array of predictions for each row of df_eval
@@ -169,38 +190,111 @@ def get_move_features(move):
 
 
 def get_possible_moves_data(current_board):
-    """Trả về pd.DataFrame của tất cả các nước đi hợp lệ dùng cho dự đoán
-
-    Keyword arguments:
-    current_board -- GameState (chứ không phải chess.Board)
     """
+    Trả về pd.DataFrame của tất cả các nước đi hợp lệ dùng cho dự đoán,
+    với cột trạng thái bàn cờ là chuỗi, cột nước đi là float,
+    và các cột được sắp xếp theo EXPECTED_MODEL_COLUMNS.
+    """
+    # <<< SỬA LỖI 1: Khai báo sử dụng biến toàn cục >>>
+    global EXPECTED_MODEL_COLUMNS
+
+    # Kiểm tra lại biến toàn cục sau khi khai báo global
+    if not EXPECTED_MODEL_COLUMNS or len(EXPECTED_MODEL_COLUMNS) != 192:
+         print("Lỗi nghiêm trọng: EXPECTED_MODEL_COLUMNS không hợp lệ sau khi khai báo global.")
+         return pd.DataFrame()
+
     data = []
-    moves = current_board.getValidMoves()  # Lấy các nước đi hợp lệ từ GameState
+    moves = current_board.getValidMoves()
+    if not moves:
+        return pd.DataFrame(columns=EXPECTED_MODEL_COLUMNS)
 
-    # Các tên ô từ GameState, thay thế chess.SQUARE_NAMES
-    board_feature_names = [f"{chr(col + 97)}{8 - row}" for row in range(8) for col in range(8)]
+    # --- 1. Lấy đặc trưng bàn cờ dạng CHUỖI ---
+    board_state_strings = []
+    for r in range(8):
+        for c in range(8):
+            board_state_strings.append(current_board.board[r][c])
 
-    move_from_feature_names = ['from_' + square for square in board_feature_names]
-    move_to_feature_names = ['to_' + square for square in board_feature_names]
+    # --- 2. Hàm nội bộ để tính one-hot float32 cho nước đi ---
+    def calculate_move_features(move):
+        from_square_ = np.zeros(64, dtype=np.float32)
+        to_square_ = np.zeros(64, dtype=np.float32)
+        if move:
+             from_square_[move.start_row * 8 + move.start_col] = 1.0
+             to_square_[move.end_row * 8 + move.end_col] = 1.0
+        return from_square_, to_square_
 
+    # --- 3. Thu thập dữ liệu ---
     for move in moves:
-        from_square, to_square = get_move_features(move)  # Lấy các đặc trưng của nước đi
-        row = np.concatenate(
-            (get_board_features(current_board), from_square, to_square))  # Ghép các đặc trưng lại với nhau
-        data.append(row)
+        from_square, to_square = calculate_move_features(move)
+        row_mixed_type = board_state_strings + from_square.tolist() + to_square.tolist()
+        data.append(row_mixed_type)
 
-    columns = board_feature_names + move_from_feature_names + move_to_feature_names
-
-    # Tạo DataFrame từ dữ liệu
+    # --- 4. Tạo DataFrame ban đầu ---
+    board_feature_names_temp = [f"{chr(c + 97)}{8 - r}" for r in range(8) for c in range(8)]
+    move_from_feature_names_temp = ['from_' + s for s in board_feature_names_temp]
+    move_to_feature_names_temp = ['to_' + s for s in board_feature_names_temp]
+    columns = board_feature_names_temp + move_from_feature_names_temp + move_to_feature_names_temp
     df = pd.DataFrame(data=data, columns=columns)
 
-    # Chuyển đổi kiểu dữ liệu của các cột nước đi
-    for column in move_from_feature_names:
-        df[column] = df[column].astype(float)
-    for column in move_to_feature_names:
-        df[column] = df[column].astype(float)
+    # --- 5. Ép kiểu cột nước đi ---
+    try:
+         for col in move_from_feature_names_temp + move_to_feature_names_temp:
+             if col in df.columns:
+                 df[col] = df[col].astype(np.float32)
+    except Exception as e:
+         print(f"Lỗi khi ép kiểu cột nước đi thành float32: {e}")
+         # return pd.DataFrame(columns=EXPECTED_MODEL_COLUMNS) # Bỏ comment nếu muốn dừng khi lỗi
+
+    # --- 6. Sắp xếp lại cột ---
+    try:
+        df = df[EXPECTED_MODEL_COLUMNS]
+    except KeyError as e:
+        print(f"Lỗi nghiêm trọng khi sắp xếp cột: Không tìm thấy cột '{e}'.")
+        missing_cols = [col for col in EXPECTED_MODEL_COLUMNS if col not in df.columns]
+        print(f"Các cột mong đợi bị thiếu: {missing_cols}")
+        extra_cols = [col for col in df.columns if col not in EXPECTED_MODEL_COLUMNS]
+        print(f"Các cột có trong df nhưng không mong đợi: {extra_cols}")
+        return pd.DataFrame(columns=EXPECTED_MODEL_COLUMNS)
+    except Exception as ex:
+        print(f"Lỗi không xác định khi sắp xếp lại cột: {ex}")
+        return pd.DataFrame(columns=EXPECTED_MODEL_COLUMNS)
 
     return df
+
+
+# def get_possible_moves_data(current_board):
+#     """Trả về pd.DataFrame của tất cả các nước đi hợp lệ dùng cho dự đoán
+#
+#     Keyword arguments:
+#     current_board -- GameState (chứ không phải chess.Board)
+#     """
+#     data = []
+#     moves = current_board.getValidMoves()  # Lấy các nước đi hợp lệ từ GameState
+#
+#     # Các tên ô từ GameState, thay thế chess.SQUARE_NAMES
+#     board_feature_names = [f"{chr(col + 97)}{8 - row}" for row in range(8) for col in range(8)]
+#
+#     move_from_feature_names = ['from_' + square for square in board_feature_names]
+#     move_to_feature_names = ['to_' + square for square in board_feature_names]
+#
+#     for move in moves:
+#         from_square, to_square = get_move_features(move)  # Lấy các đặc trưng của nước đi
+#         row = np.concatenate(
+#             (get_board_features(current_board), from_square, to_square))  # Ghép các đặc trưng lại với nhau
+#         data.append(row)
+#
+#     columns = board_feature_names + move_from_feature_names + move_to_feature_names
+#
+#     # Tạo DataFrame từ dữ liệu
+#     df = pd.DataFrame(data=data, columns=columns)
+#
+#     # Chuyển đổi kiểu dữ liệu của các cột nước đi
+#     for column in move_from_feature_names:
+#         df[column] = df[column].astype(float)
+#     for column in move_to_feature_names:
+#         df[column] = df[column].astype(float)
+#
+#     return df
 
 
 # def find_best_moves(game_state, model, proportion=1):
