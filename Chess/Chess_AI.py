@@ -34,29 +34,6 @@ piece_to_float = {k: float(v) for k, v in piece_to_int.items()}
 def encode_piece(piece_str):
     return piece_to_float.get(piece_str, 0.0)
 
-# def predict(df_eval, imported_model):
-#     """Return array of predictions for each row of df_eval
-#
-#     Keyword arguments:
-#     df_eval -- pd.DataFrame
-#     imported_model -- tf.saved_model
-#     """
-#     col_names = df_eval.columns
-#     dtypes = df_eval.dtypes
-#     predictions = []
-#     for _, row in df_eval.iterrows():  # Use the underscore to discard the row index
-#         example = tf.train.Example()
-#         for col_name, dtype in dtypes.items():  # Loop through column names and data types
-#             value = row[col_name]  # Access the DataFrame column using col_name
-#             if dtype == 'object':
-#                 value = bytes(value, 'utf-8')
-#                 example.features.feature[col_name].bytes_list.value.extend([value])
-#             elif dtype == 'float':
-#                 example.features.feature[col_name].float_list.value.extend([value])
-#             elif dtype == 'int':
-#                 example.features.feature[col_name].int64_list.value.extend([value])
-#         predictions.append(imported_model.signatures['predict'](examples=tf.constant([example.SerializeToString()])))
-#     return predictions
 def predict_keras_exported(df_eval, imported_model):
     """
     Dự đoán bằng mô hình Keras đã export (sử dụng serving_default).
@@ -261,68 +238,6 @@ def get_possible_moves_data(current_board):
 
     return df
 
-
-# def get_possible_moves_data(current_board):
-#     """Trả về pd.DataFrame của tất cả các nước đi hợp lệ dùng cho dự đoán
-#
-#     Keyword arguments:
-#     current_board -- GameState (chứ không phải chess.Board)
-#     """
-#     data = []
-#     moves = current_board.getValidMoves()  # Lấy các nước đi hợp lệ từ GameState
-#
-#     # Các tên ô từ GameState, thay thế chess.SQUARE_NAMES
-#     board_feature_names = [f"{chr(col + 97)}{8 - row}" for row in range(8) for col in range(8)]
-#
-#     move_from_feature_names = ['from_' + square for square in board_feature_names]
-#     move_to_feature_names = ['to_' + square for square in board_feature_names]
-#
-#     for move in moves:
-#         from_square, to_square = get_move_features(move)  # Lấy các đặc trưng của nước đi
-#         row = np.concatenate(
-#             (get_board_features(current_board), from_square, to_square))  # Ghép các đặc trưng lại với nhau
-#         data.append(row)
-#
-#     columns = board_feature_names + move_from_feature_names + move_to_feature_names
-#
-#     # Tạo DataFrame từ dữ liệu
-#     df = pd.DataFrame(data=data, columns=columns)
-#
-#     # Chuyển đổi kiểu dữ liệu của các cột nước đi
-#     for column in move_from_feature_names:
-#         df[column] = df[column].astype(float)
-#     for column in move_to_feature_names:
-#         df[column] = df[column].astype(float)
-#
-#     return df
-
-
-# def find_best_moves(game_state, model, proportion=1):
-#     """Trả về danh sách các nước đi tốt nhất (Move) cho một đối tượng GameState."""
-#     moves = game_state.getValidMoves()  # Lấy các nước đi hợp lệ từ GameState
-#     df_eval = get_possible_moves_data(game_state)  # Lấy dữ liệu cho các nước đi từ GameState
-#     predictions = predict(df_eval, model)  # Dự đoán xác suất các nước đi
-#     good_move_probas = []
-#
-#     for prediction in predictions:
-#         proto_tensor = tf.make_tensor_proto(prediction['probabilities'])
-#         proba = tf.make_ndarray(proto_tensor)[0][1]  # Lấy xác suất của nước đi tốt
-#         good_move_probas.append(proba)
-#
-#     # Tạo từ điển với Move là khóa và xác suất là giá trị
-#     dict_ = {}
-#     for move, proba in zip(moves, good_move_probas):
-#         dict_[move] = proba  # move là đối tượng Move, không phải chuỗi
-#
-#     dict_ = OrderedDict(sorted(dict_.items(), key=itemgetter(1), reverse=True))
-#
-#     best_moves = list(dict_.keys())  # Lấy danh sách các nước đi đã sắp xếp
-#     best_moves_to_return = best_moves[0:int(np.ceil(len(best_moves) * proportion))]
-#
-#     if not best_moves_to_return:
-#         best_moves_to_return = [random.choice(moves)]  # Nếu không có nước đi tốt, chọn ngẫu nhiên
-#
-#     return best_moves_to_return
 
 def find_best_moves(game_state, model, proportion=1):
     """Trả về danh sách các nước đi tốt nhất (Move) cho một đối tượng GameState."""
@@ -548,70 +463,6 @@ def evaluate_board(game_state):
     return evaluation
 
 
-# def minimax(ai_level, game_state, alpha, beta, is_maximising_player):
-#     """Minimax algorithm with alpha-beta pruning"""
-#     depth = get_depth_based_on_level(ai_level)
-#     if depth == 0:
-#         return -evaluate_board(game_state)  # Evaluate the current board state
-#     elif depth > 3:
-#         legal_moves = find_best_moves(game_state, model, 0.75)  # Best moves based on model
-#     else:
-#         legal_moves = game_state.getValidMoves()  # Use GameState's getValidMoves method
-#
-#     if is_maximising_player:
-#         best_move = -9999
-#         for move in legal_moves:
-#             game_state.makeMove(move)  # Apply the move
-#             best_move = max(best_move, minimax(depth - 1, game_state, alpha, beta, not is_maximising_player))
-#             game_state.undoMove()  # Undo the move
-#             alpha = max(alpha, best_move)
-#             if beta <= alpha:  # Beta cut-off
-#                 return best_move
-#         return best_move
-#     else:
-#         best_move = 9999
-#         for move in legal_moves:
-#             game_state.makeMove(move)  # Apply the move
-#             best_move = min(best_move, minimax(depth - 1, game_state, alpha, beta, not is_maximising_player))
-#             game_state.undoMove()  # Undo the move
-#             beta = min(beta, best_move)
-#             if beta <= alpha:  # Alpha cut-off
-#                 return best_move
-#         return best_move
-#
-#
-#
-# def minimax_root(game_state, ai_level, return_queue, is_maximising_player=True):
-#     """
-#     Tìm nước đi tốt nhất cho AI sử dụng thuật toán minimax.
-#
-#     game_state: đối tượng GameState chứa trạng thái bàn cờ
-#     depth: độ sâu của tìm kiếm minimax
-#     is_maximising_player: True nếu AI đang tìm kiếm nước đi tối ưu cho quân của mình
-#     """
-#     depth = get_depth_based_on_level(ai_level)
-#     legal_moves = find_best_moves(game_state, model)  # Lấy các nước đi tốt nhất
-#     best_move = -9999
-#     best_move_found = None
-#
-#     for move in legal_moves:
-#         # Đảm bảo move là đối tượng Move
-#         if not isinstance(move, Move):
-#             raise TypeError("move phải là đối tượng Move.")
-#
-#         game_state.makeMove(move)  # Thực hiện nước đi trên GameState
-#         value = minimax(depth - 1, game_state, -10000, 10000, not is_maximising_player)
-#         game_state.undoMove()  # Hoàn tác nước đi trên GameState
-#         if value >= best_move:
-#             best_move = value
-#             best_move_found = move
-#
-#     return_queue.put(best_move_found)
-
-# Trong Chess_AI.py
-
-# Giả sử model và các hàm phụ trợ khác đã được định nghĩa đúng
-# Giả sử Move được import từ ChessEngine
 
 def minimax(depth, game_state, alpha, beta, is_maximising_player): # Sửa: Nhận depth
     """Minimax algorithm with alpha-beta pruning"""
