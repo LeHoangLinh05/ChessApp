@@ -5,11 +5,10 @@ Displaying current GameStatus object.
 """
 
 import pygame as p
-import ChessEngine, ChessAI
+import ChessEngine, Chess_AI
 import sys
 from multiprocessing import Process, Queue, freeze_support
 
-from Chess import Chess_AI
 
 BOARD_WIDTH = BOARD_HEIGHT = 512
 MOVE_LOG_PANEL_WIDTH = 250
@@ -294,7 +293,7 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
                 ai_move = return_queue.get()
                 if ai_move is None:
                     print("AI trả về None (hoặc lỗi), tìm nước đi ngẫu nhiên.")
-                    ai_move = ChessAI.findRandomMove(valid_moves) # Sử dụng valid_moves hiện tại
+                    ai_move = Chess_AI.findRandomMove(valid_moves) # Sử dụng valid_moves hiện tại
 
                 if ai_move: # Đảm bảo thực sự tìm/trả về được nước đi
                     game_state.makeMove(ai_move)
@@ -332,10 +331,10 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
         if not game_over: # Chỉ kiểm tra nếu chưa kết thúc
              if game_state.checkmate:
                  game_over = True
-                 end_game_text = ("Black" if game_state.white_to_move else "White") + " thắng do chiếu hết"
+                 end_game_text = ("Black" if game_state.white_to_move else "White") + " win by Checkmate"
              elif game_state.stalemate:
                  game_over = True
-                 end_game_text = "Hòa cờ (Stalemate)"
+                 end_game_text = "Stalemate"
 
         if game_over:
              drawEndGameText(screen, end_game_text)

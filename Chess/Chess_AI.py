@@ -6,7 +6,24 @@ import tensorflow as tf
 import random
 from ChessEngine import *
 
-path_to_model = 'D:/AI/Chess/ChessApp/Chess/model/morphy'
+WEIGHT_MATERIAL_PST = 1  # Trọng số cho điểm vật chất + PST
+WEIGHT_MOBILITY = 0     # Tính cơ động thường có trọng số nhỏ hơn
+WEIGHT_CENTER_CONTROL = 0
+WEIGHT_KING_SAFETY = 0 # An toàn vua khá quan trọng
+WEIGHT_PAWN_STRUCTURE = 0
+WEIGHT_BISHOP_PAIR = 0   # Thưởng cho việc có cặp tượng
+WEIGHT_ROOK_PLACEMENT = 0 # Vị trí của Xe
+MAX_QS_DEPTH = 3
+CHECKMATE_SCORE = 99999 # Hoặc một số lớn cụ thể dễ debug hơn float('inf')
+STALEMATE_SCORE = 0.0
+MAX_PLY = 60
+# --- Các ô trung tâm ---
+CENTER_SQUARES_MAIN = [(3, 3), (3, 4), (4, 3), (4, 4)] # e4, d4, e5, d5
+CENTER_SQUARES_EXTENDED = CENTER_SQUARES_MAIN + [(2, 2), (2, 3), (2, 4), (2, 5),
+                                             (3, 2), (3, 5), (4, 2), (4, 5),
+                                             (5, 2), (5, 3), (5, 4), (5, 5)] # Mở rộng thêm
+
+path_to_model = 'D:/AI/Chess/ChessApp/Chess/model/abdusattorov'
 
 global model
 # model = tf.saved_model.load(path_to_model)
@@ -33,6 +50,251 @@ piece_to_int = {
 piece_to_float = {k: float(v) for k, v in piece_to_int.items()}
 def encode_piece(piece_str):
     return piece_to_float.get(piece_str, 0.0)
+
+
+def calculate_material_pst_score(game_state):
+    """Tính tổng điểm vật chất và điểm từ bảng PST."""
+    score = 0.0
+    for r in range(8):
+        for c in range(8):
+            piece = game_state.board[r][c]
+            square_index = r * 8 + c
+            # Sử dụng hàm get_piece_value đã có (đã bao gồm PST)
+            value = get_piece_value(piece, square_index)
+            if value is None: # Phòng ngừa lỗi
+                 value = 0.0
+            score += value
+    return score
+
+def calculate_mobility_score(game_state):
+    """Tính điểm dựa trên sự chênh lệch số nước đi hợp lệ."""
+    # Lưu lượt đi hiện tại
+    original_turn = game_state.white_to_move
+
+    # Tính số nước đi của Trắng
+    game_state.white_to_move = True
+    # Tạo một bản sao trạng thái để tránh thay đổi không mong muốn khi getValidMoves
+    # Hoặc đảm bảo getValidMoves không có tác dụng phụ lên trạng thái cốt lõi
+    # Ở đây giả định getValidMoves là an toàn hoặc chúng ta chấp nhận rủi ro nhỏ
+    white_moves = len(game_state.getValidMoves())
+
+    # Tính số nước đi của Đen
+    game_state.white_to_move = False
+    black_moves = len(game_state.getValidMoves())
+
+    # Khôi phục lượt đi
+    game_state.white_to_move = original_turn
+
+    # Điểm là sự chênh lệch mobility (dương nếu Trắng cơ động hơn)
+    mobility_diff = white_moves - black_moves
+    return mobility_diff
+
+def calculate_center_control_score(game_state):
+    """Tính điểm kiểm soát trung tâm."""
+    score = 0.0
+    for r, c in CENTER_SQUARES_MAIN: # Duyệt qua các ô trung tâm chính
+        piece = game_state.board[r][c]
+        if piece != '--':
+            # Thưởng nếu quân chiếm ô trung tâm
+            bonus = 1.0 if piece[1] == 'p' else 1.5 # Tốt chiếm ít điểm hơn quân khác
+            score += bonus if piece[0] == 'w' else -bonus
+
+    # Có thể thêm logic kiểm tra quân nào đang *tấn công* ô trung tâm nữa
+    # Điều này phức tạp hơn, cần getValidMoves hoặc logic tấn công riêng
+    # Tạm thời bỏ qua để đơn giản
+
+    return score
+
+def get_king_safety_penalty(king_pos, board, opponent_color):
+    """Tính điểm phạt cho Vua dựa trên các mối đe dọa xung quanh."""
+    penalty = 0.0
+    king_r, king_c = king_pos
+
+    # 1. Kiểm tra Tốt che chắn
+    pawn_shield_bonus = 0
+    shield_row_offset = 1 if opponent_color == 'b' else -1 # Hàng trước mặt vua
+    shield_row = king_r + shield_row_offset
+    if 0 <= shield_row <= 7:
+        for dc in [-1, 0, 1]:
+            shield_col = king_c + dc
+            if 0 <= shield_col <= 7:
+                piece = board[shield_row][shield_col]
+                # Thưởng nếu có tốt phe mình che chắn
+                if piece[0] != opponent_color and piece[1] == 'p':
+                    pawn_shield_bonus += 0.5
+                # Phạt nhẹ nếu là tốt đối phương gần vua
+                elif piece[0] == opponent_color and piece[1] == 'p':
+                     penalty += 0.2
+
+    penalty -= pawn_shield_bonus # Giảm điểm phạt nếu có tốt che
+
+    # 2. Kiểm tra cột mở/nửa mở hướng về Vua (logic đơn giản)
+    # Phạt nếu có Xe/Hậu đối phương trên cùng cột và không có quân mình chặn
+    friendly_color = 'w' if opponent_color == 'b' else 'b'
+    for r_check in range(8):
+         piece_on_file = board[r_check][king_c]
+         if piece_on_file[0] == opponent_color and (piece_on_file[1] == 'R' or piece_on_file[1] == 'Q'):
+             # Kiểm tra xem có quân mình chặn giữa không
+             blocked = False
+             step = 1 if r_check > king_r else -1
+             for r_block in range(king_r + step, r_check, step):
+                 if board[r_block][king_c] != '--':
+                     blocked = True
+                     break
+             if not blocked:
+                 penalty += 1.5 # Phạt nặng nếu Xe/Hậu dòm ngó trực tiếp
+
+    # 3. Có thể thêm kiểm tra các đường chéo mở, số lượng quân địch tấn công khu vực vua,...
+
+    return penalty
+
+
+def calculate_king_safety_score(game_state):
+    """Tính điểm an toàn Vua cho cả hai bên."""
+    white_king_penalty = get_king_safety_penalty(game_state.white_king_location, game_state.board, 'b')
+    black_king_penalty = get_king_safety_penalty(game_state.black_king_location, game_state.board, 'w')
+
+    # Điểm dương nếu Vua Trắng an toàn hơn (ít điểm phạt hơn)
+    return black_king_penalty - white_king_penalty
+
+def calculate_pawn_structure_score(game_state):
+    """Tính điểm dựa trên cấu trúc Tốt."""
+    white_pawns = []
+    black_pawns = []
+    for r in range(8):
+        for c in range(8):
+            piece = game_state.board[r][c]
+            if piece == 'wp':
+                white_pawns.append((r, c))
+            elif piece == 'bp':
+                black_pawns.append((r, c))
+
+    score = 0.0
+
+    # Phạt Tốt chồng (Doubled Pawns)
+    white_cols = [c for r, c in white_pawns]
+    black_cols = [c for r, c in black_pawns]
+    score -= (len(white_cols) - len(set(white_cols))) * 0.5 # Mỗi cặp tốt chồng phạt 0.5
+    score += (len(black_cols) - len(set(black_cols))) * 0.5 # Phạt tốt chồng Đen -> lợi cho Trắng
+
+    # Phạt Tốt cô lập (Isolated Pawns) - logic đơn giản: kiểm tra cột kế bên
+    for r, c in white_pawns:
+        isolated = True
+        for other_c in white_cols:
+            if abs(c - other_c) == 1:
+                isolated = False
+                break
+        if isolated:
+            score -= 0.3
+    for r, c in black_pawns:
+        isolated = True
+        for other_c in black_cols:
+            if abs(c - other_c) == 1:
+                isolated = False
+                break
+        if isolated:
+            score += 0.3
+
+    # Thưởng Tốt thông (Passed Pawns) - logic cơ bản
+    # (Cần kiểm tra không có tốt địch ở trước và cột kế bên)
+    # ... (Implement logic kiểm tra Tốt thông nếu cần) ...
+
+    return score
+
+def calculate_bishop_pair_score(game_state):
+    """Thưởng nếu một bên có cặp Tượng."""
+    white_bishops = 0
+    black_bishops = 0
+    for r in range(8):
+        for c in range(8):
+            piece = game_state.board[r][c]
+            if piece == 'wB':
+                white_bishops += 1
+            elif piece == 'bB':
+                black_bishops += 1
+    score = 0.0
+    if white_bishops >= 2:
+        score += WEIGHT_BISHOP_PAIR
+    if black_bishops >= 2:
+        score -= WEIGHT_BISHOP_PAIR
+    return score
+
+def is_file_open(col, board):
+    """Kiểm tra cột có hoàn toàn không có Tốt nào không."""
+    for r in range(8):
+        piece = board[r][col]
+        if piece[1] == 'p':
+            return False
+    return True
+
+def is_file_semi_open(col, board, friendly_color):
+    """Kiểm tra cột không có Tốt phe mình."""
+    for r in range(8):
+        piece = board[r][col]
+        if piece[0] == friendly_color and piece[1] == 'p':
+            return False
+    return True
+
+def calculate_rook_placement_score(game_state):
+    """Tính điểm cho vị trí của Xe."""
+    score = 0.0
+    for r in range(8):
+        for c in range(8):
+            piece = game_state.board[r][c]
+            if piece == 'wR':
+                if is_file_open(c, game_state.board):
+                    score += 0.4 # Thưởng Xe cột mở
+                elif is_file_semi_open(c, game_state.board, 'w'):
+                    score += 0.2 # Thưởng nhẹ Xe cột nửa mở
+                if r == 1: # Hàng 7 của Đen
+                    score += 0.5 # Thưởng Xe hàng 7
+            elif piece == 'bR':
+                if is_file_open(c, game_state.board):
+                    score -= 0.4
+                elif is_file_semi_open(c, game_state.board, 'b'):
+                    score -= 0.2
+                if r == 6: # Hàng 2 của Trắng
+                    score -= 0.5
+    return score
+
+# # --- Hàm Đánh giá Tổng thể ---
+# def evaluate_board(game_state):
+#     """
+#     Trả về đánh giá tổng hợp của bàn cờ, kết hợp nhiều yếu tố.
+#     Điểm dương lợi cho Trắng, điểm âm lợi cho Đen.
+#     """
+#     # Kiểm tra các trường hợp kết thúc game trước
+#     if game_state.checkmate:
+#         # Nếu Trắng bị chiếu hết -> điểm rất thấp, Đen bị chiếu hết -> điểm rất cao
+#         return -9999 if game_state.white_to_move else 9999
+#     elif game_state.stalemate:
+#         return 0.0 # Hòa cờ
+#
+#     # Tính điểm từ các thành phần
+#     material_pst = calculate_material_pst_score(game_state)
+#     mobility = calculate_mobility_score(game_state)
+#     center_control = calculate_center_control_score(game_state)
+#     king_safety = calculate_king_safety_score(game_state)
+#     pawn_structure = calculate_pawn_structure_score(game_state)
+#     bishop_pair = calculate_bishop_pair_score(game_state)
+#     rook_placement = calculate_rook_placement_score(game_state)
+#
+#     # Kết hợp điểm với trọng số
+#     total_evaluation = (material_pst * WEIGHT_MATERIAL_PST +
+#                         mobility * WEIGHT_MOBILITY +
+#                         center_control * WEIGHT_CENTER_CONTROL +
+#                         king_safety * WEIGHT_KING_SAFETY +
+#                         pawn_structure * WEIGHT_PAWN_STRUCTURE +
+#                         bishop_pair * WEIGHT_BISHOP_PAIR +
+#                         rook_placement * WEIGHT_ROOK_PLACEMENT)
+#
+#     # Quan trọng: Trả về điểm số từ góc nhìn của người chơi hiện tại
+#     # Nếu hàm minimax đã được chuẩn hóa để xử lý góc nhìn, chỉ cần trả về total_evaluation
+#     # Nếu không, cần nhân với 1 nếu Trắng đi, -1 nếu Đen đi
+#     # return total_evaluation * (1 if game_state.white_to_move else -1) # Nếu minimax chưa chuẩn hóa
+#
+#     # Giả sử minimax đã được chuẩn hóa (trả về điểm từ góc nhìn Trắng)
+#     return total_evaluation
 
 def predict_keras_exported(df_eval, imported_model):
     """
@@ -375,7 +637,7 @@ def get_depth_based_on_level(ai_level):
     if ai_level == 'easy':
         return 2
     elif ai_level == 'hard':
-        return 4
+        return 5
 
 
 
@@ -462,68 +724,321 @@ def evaluate_board(game_state):
             evaluation += value
     return evaluation
 
+# def quiescence_search(game_state, alpha, beta, is_maximising_player, current_qs_depth):
+#     """
+#     Thực hiện tìm kiếm tĩnh lặng để đánh giá các vị trí không ổn định.
+#     Chỉ xem xét các nước đi bắt quân (hoặc các nước đi "ồn ào" khác).
+#     Trả về điểm đánh giá từ góc nhìn của Trắng.
+#     """
+#
+#     # --- 1. Đánh giá "Stand Pat" (Điểm nếu không làm gì) ---
+#     # Đây là điểm số tối thiểu (cho min player) hoặc tối đa (cho max player)
+#     # mà chúng ta có thể đảm bảo nếu không thực hiện nước đi ồn ào nào.
+#     stand_pat_score = evaluate_board(game_state) # Điểm đánh giá tĩnh hiện tại
+#
+#     # --- 2. Cập nhật Alpha/Beta dựa trên Stand Pat & Kiểm tra Cutoff sớm ---
+#     if is_maximising_player:
+#         alpha = max(alpha, stand_pat_score) # Max player có thể đạt ít nhất điểm này
+#     else:
+#         beta = min(beta, stand_pat_score)   # Min player có thể giữ điểm không cao hơn điểm này
+#
+#     # Nếu stand_pat đã gây ra cutoff, không cần tìm kiếm thêm
+#     if alpha >= beta:
+#         return stand_pat_score
+#
+#     # --- 3. Kiểm tra giới hạn độ sâu QS ---
+#     if current_qs_depth >= MAX_QS_DEPTH:
+#         return stand_pat_score # Đạt giới hạn, trả về đánh giá tĩnh
+#
+#     # --- 4. Tạo danh sách các nước đi "ồn ào" (chủ yếu là bắt quân) ---
+#     noisy_moves = []
+#     try:
+#         all_moves = game_state.getValidMoves() # Lấy tất cả nước đi hợp lệ
+#         for move in all_moves:
+#             # Ưu tiên các nước bắt quân
+#             if move.is_capture: # Giả sử thuộc tính này tồn tại
+#             # Hoặc: if move.piece_captured != '--':
+#                 noisy_moves.append(move)
+#             # TODO (Tùy chọn): Thêm các nước đi khác được coi là "ồn ào"
+#             # Ví dụ: Phong cấp (move.is_pawn_promotion), hoặc thậm chí là Chiếu
+#     except Exception as e:
+#          print(f"Lỗi khi getValidMoves trong QS: {e}")
+#          return stand_pat_score # Trả về đánh giá tĩnh nếu không lấy được nước đi
+#
+#     # --- 5. Nếu không có nước đi ồn ào, trả về Stand Pat ---
+#     if not noisy_moves:
+#         return stand_pat_score
+#
+#     # --- TODO (Tùy chọn nâng cao): Sắp xếp noisy_moves ---
+#     # Sắp xếp các nước bắt quân (ví dụ: MVV-LVA - Bắt quân giá trị cao nhất bằng quân giá trị thấp nhất trước)
+#     # có thể tăng hiệu quả cắt tỉa alpha-beta đáng kể trong QS.
+#
+#     # --- 6. Thực hiện vòng lặp Minimax chỉ trên các nước đi ồn ào ---
+#     if is_maximising_player:
+#         best_value = stand_pat_score # Khởi tạo với điểm stand_pat
+#         for move in noisy_moves:
+#             try:
+#                 game_state.makeMove(move)
+#                 # Gọi đệ quy quiescence_search, tăng độ sâu QS
+#                 value = quiescence_search(game_state, alpha, beta, False, current_qs_depth + 1)
+#                 game_state.undoMove()
+#
+#                 best_value = max(best_value, value)
+#                 alpha = max(alpha, best_value) # Cập nhật alpha
+#
+#                 # Cắt tỉa Beta
+#                 if alpha >= beta:
+#                     break # Dừng duyệt các nước đi ồn ào còn lại
+#             except Exception as e:
+#                  print(f"Lỗi trong QS (max) khi xử lý {move}: {e}")
+#                  try: game_state.undoMove() # Cố gắng hoàn tác nếu lỗi
+#                  except: pass
+#                  continue # Bỏ qua nước đi lỗi này
+#         return best_value # Trả về điểm tốt nhất tìm được cho Max player
+#     else: # Minimising player (AI Đen của bạn khi is_maximising_player=False)
+#         best_value = stand_pat_score # Khởi tạo với điểm stand_pat
+#         for move in noisy_moves:
+#             try:
+#                 game_state.makeMove(move)
+#                 # Gọi đệ quy quiescence_search, tăng độ sâu QS
+#                 value = quiescence_search(game_state, alpha, beta, True, current_qs_depth + 1)
+#                 game_state.undoMove()
+#
+#                 best_value = min(best_value, value)
+#                 beta = min(beta, best_value) # Cập nhật beta
+#
+#                 # Cắt tỉa Alpha
+#                 if alpha >= beta:
+#                     break # Dừng duyệt các nước đi ồn ào còn lại
+#             except Exception as e:
+#                  print(f"Lỗi trong QS (min) khi xử lý {move}: {e}")
+#                  try: game_state.undoMove()
+#                  except: pass
+#                  continue
+#         return best_value # Trả về điểm tốt nhất tìm được cho Min player (điểm thấp nhất theo góc nhìn Trắng)
 
+# def minimax(depth, game_state, alpha, beta, is_maximising_player): # Sửa: Nhận depth
+#     """Minimax algorithm with alpha-beta pruning"""
+#     # Trường hợp cơ sở: độ sâu bằng 0
+#     if depth == 0:
+#         # Giả sử evaluate_board hoạt động đúng
+#         return evaluate_board(game_state)
+#
+#     # --- Logic lấy nước đi ---
+#     # Trong các bước đệ quy, thường xem xét tất cả nước đi hợp lệ
+#     # Logic chọn lọc (dùng find_best_moves) thường chỉ áp dụng ở root hoặc độ sâu nông
+#     legal_moves = game_state.getValidMoves() # Lấy tất cả nước đi hợp lệ
+#
+#     # Xử lý trường hợp không còn nước đi (có thể là checkmate/stalemate ở nút lá)
+#     if not legal_moves:
+#          return evaluate_board(game_state) # Trả về đánh giá tĩnh
+#
+#     if is_maximising_player:
+#         best_value = -9999 # Đổi tên để rõ ràng hơn
+#         for move in legal_moves:
+#             if not isinstance(move, Move): continue # Kiểm tra lại kiểu dữ liệu
+#
+#             try:
+#                 game_state.makeMove(move)
+#                 # CHỈ GỌI ĐỆ QUY Ở ĐÂY
+#                 best_value = max(best_value, minimax(depth - 1, game_state, alpha, beta, not is_maximising_player))
+#                 game_state.undoMove()
+#
+#             except Exception as e:
+#                 print(f"Lỗi trong minimax (max) khi xử lý {move}: {e}")
+#                 # Cân nhắc hoàn tác nếu lỗi xảy ra sau makeMove
+#                 try:
+#                     game_state.undoMove()
+#                 except:
+#                     pass
+#                 continue  # Bỏ qua nước đi lỗi
+#
+#             alpha = max(alpha, best_value)
+#             if beta <= alpha:  # Beta cut-off
+#                 break  # Không cần break, chỉ cần return
+#         return best_value  # Trả về giá trị tốt nhất tìm được
+#
+#     else: # Minimising player
+#         best_value = 9999
+#         for move in legal_moves:
+#
+#             try:
+#                 game_state.makeMove(move)
+#                 # Gọi đệ quy với depth - 1
+#                 best_value = min(best_value, minimax(depth - 1, game_state, alpha, beta, not is_maximising_player))
+#                 game_state.undoMove()
+#
+#             except Exception as e:
+#                 print(f"Lỗi trong minimax (min) khi xử lý {move}: {e}")
+#                 try:
+#                     game_state.undoMove()
+#                 except:
+#                     pass
+#                 continue
+#
+#             beta = min(beta, best_value)
+#             if beta <= alpha:  # Alpha cut-off
+#                 break
+#         return best_value
 
-def minimax(depth, game_state, alpha, beta, is_maximising_player): # Sửa: Nhận depth
-    """Minimax algorithm with alpha-beta pruning"""
-    # Xóa: depth = get_depth_based_on_level(ai_level)
+def minimax(depth, game_state: GameState, alpha, beta, is_maximising_player, ply_from_root=0):
+    """
+    Thuật toán Minimax với cắt tỉa Alpha-Beta, Tìm kiếm Tĩnh lặng (Quiescence Search),
+    và hỗ trợ cơ bản cho Bảng Chuyển vị (Transposition Table).
+    Trả về điểm đánh giá tốt nhất từ góc nhìn của Trắng.
+    """
+    # --- 1. Kiểm tra Giới hạn Ply ---
+    if ply_from_root > MAX_PLY:
+        return evaluate_board(game_state)
 
-    # Trường hợp cơ sở: độ sâu bằng 0
-    if depth == 0:
-        # Giả sử evaluate_board hoạt động đúng
-        return -evaluate_board(game_state)
+    # --- 2. Transposition Table Lookup ---
+    original_alpha = alpha # Lưu lại để xác định flag TT sau này
+    # zobrist_key = calculate_zobrist_key(game_state, zobrist_keys) # Lấy Zobrist key
+    # tt_entry = transposition_table.get(zobrist_key)
 
-    # --- Logic lấy nước đi ---
-    # Trong các bước đệ quy, thường xem xét tất cả nước đi hợp lệ
-    # Logic chọn lọc (dùng find_best_moves) thường chỉ áp dụng ở root hoặc độ sâu nông
-    legal_moves = game_state.getValidMoves() # Lấy tất cả nước đi hợp lệ
+    # if tt_entry and tt_entry['depth'] >= depth:
+    #     # Tìm thấy entry trong TT với độ sâu đủ lớn
+    #     if tt_entry['flag'] == 'EXACT':
+    #         return tt_entry['score'] # Trả về ngay nếu là điểm chính xác
+    #     elif tt_entry['flag'] == 'LOWER_BOUND': # Điểm lưu là cận dưới
+    #         alpha = max(alpha, tt_entry['score']) # Cập nhật alpha
+    #     elif tt_entry['flag'] == 'UPPER_BOUND': # Điểm lưu là cận trên
+    #         beta = min(beta, tt_entry['score'])   # Cập nhật beta
 
-    # Xử lý trường hợp không còn nước đi (có thể là checkmate/stalemate ở nút lá)
-    if not legal_moves:
-         return -evaluate_board(game_state) # Trả về đánh giá tĩnh
+    #     # Kiểm tra cắt tỉa ngay sau khi cập nhật alpha/beta từ TT
+    #     if alpha >= beta:
+    #         return tt_entry['score'] # Cutoff dựa trên thông tin TT
 
-    if is_maximising_player:
-        best_value = -9999 # Đổi tên để rõ ràng hơn
-        for move in legal_moves:
-            if not isinstance(move, Move): continue # Kiểm tra lại kiểu dữ liệu
+    # --- 3. Xử lý Nút Lá (Kết thúc Game hoặc Độ sâu = 0) ---
+    is_terminal, terminal_score = check_terminal_state(game_state)
+    if is_terminal:
+        # Lưu kết quả terminal vào TT nếu muốn (độ sâu rất lớn)
+        # store_in_tt(zobrist_key, 99, terminal_score, 'EXACT', None) # depth=99 ví dụ
+        return terminal_score
+
+    if depth <= 0:
+        # Gọi Quiescence Search khi hết độ sâu tìm kiếm chính
+        # QS cũng nên có cơ chế tra cứu/lưu TT riêng hoặc dùng chung TT chính
+        # Lưu kết quả QS vào TT (với depth=0 hoặc độ sâu QS thực tế)
+        # store_in_tt(zobrist_key, 0, qs_score, 'EXACT', None) # Giả sử QS trả về điểm EXACT
+        return evaluate_board(game_state)
+
+    # --- 4. Tạo và Sắp xếp Nước đi ---
+    try:
+        legal_moves = game_state.getValidMoves()
+        if not legal_moves:
+            # Điều này chỉ xảy ra nếu check_terminal_state sai hoặc có lỗi khác
+            print(f"Cảnh báo: Không có nước đi tại depth={depth}, ply={ply_from_root}")
+            # Trả về điểm hòa hoặc đánh giá tĩnh tùy tình huống
+            return STALEMATE_SCORE # Hoặc evaluate_board(game_state)
+    except Exception as e:
+        print(f"Lỗi getValidMoves tại depth={depth}, ply={ply_from_root}: {e}")
+        # Trả về giá trị an toàn khi có lỗi
+        return 0.0
+
+    # --- Sắp xếp nước đi (QUAN TRỌNG!) ---
+    # ordered_moves = sort_moves(legal_moves, game_state, tt_entry) # Hàm sắp xếp riêng
+    ordered_moves = legal_moves # Tạm thời chưa sắp xếp
+
+    # --- 5. Vòng lặp Minimax ---
+    best_move_for_tt = None # Nước đi tốt nhất tìm được ở nút này để lưu vào TT
+
+    if is_maximising_player: # Lượt Trắng (Tối đa hóa)
+        best_value = -float('inf')
+        for move in ordered_moves:
+            # if not isinstance(move, Move): continue # Thừa nếu getValidMoves đúng
 
             try:
                 game_state.makeMove(move)
-                # Gọi đệ quy với depth - 1
-                best_value = max(best_value, minimax(depth - 1, game_state, alpha, beta, not is_maximising_player))
+                # zobrist_key = update_zobrist_key(zobrist_key, move, game_state, zobrist_keys) # Cập nhật key
+                value = minimax(depth - 1, game_state, alpha, beta, False, ply_from_root + 1)
                 game_state.undoMove()
+                # zobrist_key = calculate_zobrist_key(game_state, zobrist_keys) # Tính lại key sau undo (hoặc update ngược)
+
+                # Cập nhật giá trị tốt nhất
+                if value > best_value:
+                    best_value = value
+                    best_move_for_tt = move # Lưu nước đi dẫn đến giá trị tốt nhất
+
+                # Cập nhật alpha
+                alpha = max(alpha, best_value)
+
+                # Cắt tỉa Beta
+                if alpha >= beta:
+                    # TODO: Có thể thêm logic lưu nước đi gây cắt tỉa (beta-cutoff move)
+                    # vào các cấu trúc như Killer Moves hoặc History Heuristic để cải thiện sắp xếp
+                    break # Dừng duyệt các nước còn lại
+
             except Exception as e:
-                 print(f"Lỗi trong minimax (max) khi xử lý {move}: {e}")
-                 # Cân nhắc hoàn tác nếu lỗi xảy ra sau makeMove
+                 print(f"Lỗi trong minimax (max) loop, move {move}: {e}")
                  try: game_state.undoMove()
-                 except: pass
-                 continue # Bỏ qua nước đi lỗi
+                 except Exception as undo_e: print(f"Lỗi undo sau lỗi max: {undo_e}")
+                 # Xem xét nên làm gì khi có lỗi, trả về giá trị tệ?
+                 # Hoặc bỏ qua nước đi này và tiếp tục? (hiện tại đang bỏ qua)
 
-            alpha = max(alpha, best_value)
-            if beta <= alpha:  # Beta cut-off
-                break # Không cần break, chỉ cần return
-        return best_value # Trả về giá trị tốt nhất tìm được
-    else: # Minimising player
-        best_value = 9999
-        for move in legal_moves:
-            if not isinstance(move, Move): continue
+        # --- Lưu vào Transposition Table ---
+        # tt_flag = ''
+        # if best_value <= original_alpha: # Không cải thiện được alpha -> Cận trên
+        #     tt_flag = 'UPPER_BOUND'
+        # elif best_value >= beta: # Bị cắt bởi beta -> Cận dưới
+        #     tt_flag = 'LOWER_BOUND'
+        # else: # Nằm trong khoảng (alpha, beta) ban đầu -> Chính xác
+        #     tt_flag = 'EXACT'
+        # store_in_tt(zobrist_key, depth, best_value, tt_flag, best_move_for_tt)
 
-            try:
-                game_state.makeMove(move)
-                 # Gọi đệ quy với depth - 1
-                best_value = min(best_value, minimax(depth - 1, game_state, alpha, beta, not is_maximising_player))
-                game_state.undoMove()
-            except Exception as e:
-                 print(f"Lỗi trong minimax (min) khi xử lý {move}: {e}")
-                 try: game_state.undoMove()
-                 except: pass
-                 continue
-
-            beta = min(beta, best_value)
-            if beta <= alpha:  # Alpha cut-off
-                break
         return best_value
 
+    else: # Lượt Đen (Tối thiểu hóa - AI của bạn)
+        best_value = float('inf')
+        for move in ordered_moves:
+            # if not isinstance(move, Move): continue
+
+            try:
+                game_state.makeMove(move)
+                # zobrist_key = update_zobrist_key(zobrist_key, move, game_state, zobrist_keys)
+                value = minimax(depth - 1, game_state, alpha, beta, True, ply_from_root + 1)
+                game_state.undoMove()
+                # zobrist_key = calculate_zobrist_key(game_state, zobrist_keys)
+
+                if value < best_value:
+                    best_value = value
+                    best_move_for_tt = move
+
+                beta = min(beta, best_value)
+
+                if alpha >= beta:
+                    # TODO: Logic lưu nước đi gây cắt tỉa (alpha-cutoff move)
+                    break
+
+            except Exception as e:
+                 print(f"Lỗi trong minimax (min) loop, move {move}: {e}")
+                 try: game_state.undoMove()
+                 except Exception as undo_e: print(f"Lỗi undo sau lỗi min: {undo_e}")
+
+        # --- Lưu vào Transposition Table ---
+        # tt_flag = ''
+        # if best_value <= alpha: # Bị cắt bởi alpha -> Cận trên
+        #     tt_flag = 'UPPER_BOUND'
+        # elif best_value >= beta: # Không cải thiện được beta -> Cận dưới
+        #      tt_flag = 'LOWER_BOUND'
+        # else: # Nằm trong khoảng (alpha, beta) ban đầu -> Chính xác
+        #      tt_flag = 'EXACT'
+        # store_in_tt(zobrist_key, depth, best_value, tt_flag, best_move_for_tt)
+
+        return best_value
+
+# --- Hàm kiểm tra trạng thái kết thúc (Giữ nguyên hoặc cải thiện) ---
+def check_terminal_state(game_state: GameState):
+    # ... (Logic kiểm tra checkmate/stalemate như phiên bản trước) ...
+    # Đảm bảo trả về (True, score_theo_góc_nhìn_Trắng) hoặc (False, 0.0)
+    if hasattr(game_state, 'checkmate') and game_state.checkmate:
+        # Bên bị chiếu hết là bên *có* lượt đi
+        score = -CHECKMATE_SCORE if game_state.white_to_move else CHECKMATE_SCORE
+        return True, score
+    if hasattr(game_state, 'stalemate') and game_state.stalemate:
+        return True, STALEMATE_SCORE
+    # TODO: Thêm kiểm tra hòa khác
+    return False, 0.0
 # Trong Chess_AI.py
 
 def minimax_root(game_state, ai_level, return_queue, is_maximising_player=True):
@@ -543,7 +1058,7 @@ def minimax_root(game_state, ai_level, return_queue, is_maximising_player=True):
         print(f"AI (level {ai_level}, depth {depth}) is thinking...") # Thêm log
         if depth > 3:
              print("Using find_best_moves with proportion 0.75 for initial moves.")
-             legal_moves = find_best_moves(game_state, model, 0.75) # Sử dụng model ML để giới hạn nước đi ban đầu
+             legal_moves = find_best_moves(game_state, model, 1) # Sử dụng model ML để giới hạn nước đi ban đầu
         else:
              print("Using find_best_moves with full proportion for initial moves.")
              legal_moves = find_best_moves(game_state, model) # Hoặc lấy tất cả: game_state.getValidMoves()
@@ -553,7 +1068,7 @@ def minimax_root(game_state, ai_level, return_queue, is_maximising_player=True):
              return_queue.put(None)
              return
 
-        best_move_score = -9999
+        best_move_score = 9999
         best_move_found = None
 
         for move in legal_moves:
@@ -564,16 +1079,16 @@ def minimax_root(game_state, ai_level, return_queue, is_maximising_player=True):
             try:
                 game_state.makeMove(move)
                 # Gọi minimax với độ sâu còn lại (depth - 1)
-                value = minimax(depth - 1, game_state, -10000, 10000, not is_maximising_player)
+                value = minimax(depth - 1, game_state, -10000, 10000, True)
                 game_state.undoMove()
             except Exception as e:
                 print(f"Lỗi khi thực hiện/đánh giá nước đi {move} từ root: {e}")
                 try: game_state.undoMove()
                 except Exception as undo_e: print(f"Lỗi hoàn tác sau lỗi root: {undo_e}")
-                value = -9999
+                value = 9999
 
             print(f"Move: {move}, Score: {value}") # Log điểm số từng nước đi ở root
-            if value >= best_move_score:
+            if value <= best_move_score:
                 best_move_score = value
                 best_move_found = move
 
