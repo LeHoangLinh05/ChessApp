@@ -3,9 +3,10 @@ Main driver file.
 Handling user input.
 Displaying current GameStatus object.
 """
+import multiprocessing
 
 import pygame as p
-import ChessEngine, Chess_AI
+import ChessEngine, Chess_AI2
 import sys
 from multiprocessing import Process, Queue, freeze_support
 
@@ -188,91 +189,190 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
                 p.quit()
                 sys.exit()
 
+
+            # Trong hàm run_game, vòng lặp xử lý sự kiện
+
             elif e.type == p.MOUSEBUTTONDOWN:
-                # --- Logic click của người chơi ---
-                if not game_over:
-                    location = p.mouse.get_pos()
-                    # Kiểm tra click trong phạm vi bàn cờ
-                    if 0 <= location[0] < BOARD_WIDTH and 0 <= location[1] < BOARD_HEIGHT:
-                        col = location[0] // SQUARE_SIZE
-                        row = location[1] // SQUARE_SIZE
 
-                        if square_selected == (row, col): # Bỏ chọn
-                            square_selected = ()
-                            player_clicks = []
-                        else:
-                            square_selected = (row, col)
-                            player_clicks.append(square_selected)
+                location = p.mouse.get_pos()  # Lấy vị trí click
 
-                        if len(player_clicks) == 2 and human_turn:
-                            move = ChessEngine.Move(player_clicks[0], player_clicks[1], game_state.board)
-                            move_found = False # Biến để kiểm tra nước đi hợp lệ
-                            for i in range(len(valid_moves)):
-                                if move == valid_moves[i]:
-                                    game_state.makeMove(valid_moves[i])
-                                    move_made = True
-                                    animate = True
-                                    square_selected = ()
-                                    player_clicks = []
-                                    move_found = True
-                                    break # Thoát vòng lặp khi tìm thấy nước đi
-                            if not move_found: # Nếu nước đi không hợp lệ, đặt lại về click cuối
-                                player_clicks = [square_selected]
-                    else: # Click ngoài bàn cờ (có thể là click nút)
-                         if e.button == 1: # Chỉ xử lý click chuột trái cho nút
-                            mouse_pos = e.pos
-                            # Vẽ các nút trước khi kiểm tra va chạm có thể an toàn hơn
-                            back_button_rect = drawBackButton(screen, font, game_state)
-                            reset_button_rect = drawResetButton(screen, font, game_state)
-                            surrender_button_rect = drawSurrenderButton(screen, font, game_state)
-                            return_button_rect = drawReturnButton(screen, font, game_state)
+                # --- Xử lý click trên bàn cờ (Chỉ khi game chưa kết thúc) ---
 
-                            # Kiểm tra va chạm với các nút
-                            if back_button_rect.collidepoint(mouse_pos):
-                                game_state.undoMove()
-                                move_made = True # Để tính lại valid_moves
-                                animate = False
-                                game_over = False
-                                if ai_thinking:
-                                    if move_finder_process and move_finder_process.is_alive():
-                                         move_finder_process.terminate()
-                                         # Tùy chọn: join sau terminate với timeout
-                                         # move_finder_process.join(timeout=0.5)
-                                    ai_thinking = False
-                                move_undone = True
-                                valid_moves = game_state.getValidMoves() # Cập nhật lại nước đi hợp lệ sau undo
+                if not game_over and 0 <= location[0] < BOARD_WIDTH and 0 <= location[1] < BOARD_HEIGHT:
 
+                    # Chỉ xử lý click BÀN CỜ khi game chưa over
 
-                            elif reset_button_rect.collidepoint(mouse_pos):
-                                game_state = ChessEngine.GameState() # Reset trạng thái
-                                valid_moves = game_state.getValidMoves()
+                    col = location[0] // SQUARE_SIZE
+
+                    row = location[1] // SQUARE_SIZE
+
+                    if square_selected == (row, col):  # Bỏ chọn
+
+                        square_selected = ()
+
+                        player_clicks = []
+
+                    else:
+
+                        square_selected = (row, col)
+
+                        player_clicks.append(square_selected)
+
+                    if len(player_clicks) == 2 and human_turn:
+
+                        move = ChessEngine.Move(player_clicks[0], player_clicks[1], game_state.board)
+
+                        move_found = False
+
+                        for i in range(len(valid_moves)):
+
+                            if move == valid_moves[i]:
+                                game_state.makeMove(valid_moves[i])
+
+                                move_made = True
+
+                                animate = True
+
                                 square_selected = ()
+
                                 player_clicks = []
-                                move_made = False
-                                animate = False
-                                game_over = False
-                                if ai_thinking:
-                                    if move_finder_process and move_finder_process.is_alive():
-                                        move_finder_process.terminate()
-                                        # move_finder_process.join(timeout=0.5)
-                                    ai_thinking = False
-                                move_undone = True
 
-                            elif surrender_button_rect.collidepoint(mouse_pos):
-                                game_over = True
-                                # Xác định người thắng dựa trên lượt đi hiện tại
-                                winner = "Black" if game_state.white_to_move else "White"
-                                end_game_text = f"{winner} thắng do đối phương đầu hàng"
+                                move_found = True
+
+                                break
+
+                        if not move_found:
+                            player_clicks = [square_selected]
+
+                        # Không cần kiểm tra game_over ở đây nữa, sẽ kiểm tra ở cuối vòng lặp chính
 
 
-                            elif return_button_rect.collidepoint(mouse_pos):
-                                running = False # Thoát khỏi vòng lặp game
-                                # Dừng tiến trình AI nếu đang chạy
-                                if ai_thinking:
-                                     if move_finder_process and move_finder_process.is_alive():
-                                        move_finder_process.terminate()
-                                        # move_finder_process.join(timeout=0.5)
-                                     ai_thinking = False
+                # --- Xử lý click nút (Luôn kiểm tra, bất kể game_over) ---
+
+                # Chỉ xử lý click chuột trái cho các nút
+
+                elif e.button == 1:
+
+                    # Lấy Rect của các nút (cần có các hàm này hoặc tính toán vị trí)
+
+                    # Ví dụ: Giả sử bạn có hàm get...Rect() trả về Rect của nút
+
+                    back_button_rect = drawBackButton(screen, font, game_state)
+                    reset_button_rect = drawResetButton(screen, font, game_state)
+                    surrender_button_rect = drawSurrenderButton(screen, font, game_state)
+                    return_button_rect = drawReturnButton(screen, font, game_state)
+
+                    # Kiểm tra va chạm với các nút
+
+                    if back_button_rect.collidepoint(location):
+
+                        # Chỉ cho phép undo nếu game chưa kết thúc? (Thường là vậy)
+
+                        if not game_over:
+
+                            print("Undo button clicked (while game not over)")
+
+                            game_state.undoMove()
+
+                            move_made = True  # Để tính lại valid_moves
+
+                            animate = False
+
+                            # game_over = False # Undo không làm game hết kết thúc trừ khi bạn muốn logic đó
+
+                            if ai_thinking:
+
+                                if move_finder_process and move_finder_process.is_alive():
+                                    move_finder_process.terminate()
+
+                                ai_thinking = False
+
+                            move_undone = True
+
+                            valid_moves = game_state.getValidMoves()
+
+                            end_game_text = ""  # Xóa text kết thúc nếu có
+
+                        else:
+
+                            print("Cannot undo: Game is over.")
+
+
+                    elif reset_button_rect.collidepoint(location):
+
+                        print("Reset button clicked.")
+
+                        # Reset luôn được phép
+
+                        game_state = ChessEngine.GameState()  # Reset trạng thái
+
+                        valid_moves = game_state.getValidMoves()
+
+                        square_selected = ()
+
+                        player_clicks = []
+
+                        move_made = False
+
+                        animate = False
+
+                        game_over = False  # QUAN TRỌNG: Reset cờ này
+
+                        ai_thinking = False  # Dừng AI nếu đang nghĩ
+
+                        if move_finder_process and move_finder_process.is_alive():
+                            move_finder_process.terminate()
+
+                        move_undone = True  # Ngăn AI đi ngay
+
+                        end_game_text = ""  # Xóa text kết thúc
+
+
+                    elif surrender_button_rect.collidepoint(location):
+
+                        # Chỉ cho phép đầu hàng nếu game chưa kết thúc? (Hợp lý)
+
+                        if not game_over:
+
+                            print("Surrender button clicked.")
+
+                            game_over = True
+
+                            winner = "Black" if game_state.white_to_move else "White"
+
+                            end_game_text = f"{winner} wins by Surrender"
+
+                            # Dừng AI nếu đang nghĩ
+
+                            if ai_thinking:
+
+                                if move_finder_process and move_finder_process.is_alive():
+                                    move_finder_process.terminate()
+
+                                ai_thinking = False
+
+                        else:
+
+                            print("Cannot surrender: Game is already over.")
+
+
+
+                    elif return_button_rect.collidepoint(location):
+
+                        print("Return button clicked.")
+
+                        # Return luôn được phép
+
+                        running = False  # Thoát khỏi vòng lặp game
+
+                        # Dừng tiến trình AI nếu đang chạy
+
+                        if ai_thinking:
+
+                            if move_finder_process and move_finder_process.is_alive():
+                                move_finder_process.terminate()
+
+                            ai_thinking = False
 
 
         # --- Logic AI ---
@@ -280,12 +380,13 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
 
         if is_ai_turn:
             if not ai_thinking:
-                print("AI đang suy nghĩ...")
+                print("AI thinking...")
                 ai_thinking = True
-                return_queue = Queue()
+                return_queue = multiprocessing.Queue()
+                ai_is_maximising = False
                 # Truyền đúng ai_level đã được xác định trong main_loop
-                move_finder_process = Process(target=Chess_AI.minimax_root,
-                                              args=(game_state, ai_level, return_queue))
+                move_finder_process = multiprocessing.Process(target=Chess_AI2.find_best_move_iddfs,
+                                              args=(game_state, ai_level, return_queue, ai_is_maximising))
                 move_finder_process.start()
 
             # Chỉ kiểm tra nếu tiến trình AI đã được khởi tạo
@@ -293,7 +394,7 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
                 ai_move = return_queue.get()
                 if ai_move is None:
                     print("AI trả về None (hoặc lỗi), tìm nước đi ngẫu nhiên.")
-                    ai_move = Chess_AI.findRandomMove(valid_moves) # Sử dụng valid_moves hiện tại
+                    ai_move = Chess_AI2.findRandomMove(valid_moves) # Sử dụng valid_moves hiện tại
 
                 if ai_move: # Đảm bảo thực sự tìm/trả về được nước đi
                     game_state.makeMove(ai_move)
@@ -364,7 +465,6 @@ def main_loop():
         wood_tex = p.transform.scale(wood_tex, (BUTTON_WIDTH, BUTTON_HEIGHT))
         background = p.image.load("images/background.jpg").convert()  # Thêm convert()
         background = p.transform.scale(background, (WIDTH, HEIGHT))
-        print(">>> Ảnh nền/nút ĐÃ TẢI và CONVERT trong main_loop")
     except p.error as e:
         print(f"Lỗi tải ảnh nền/nút: {e}")
         # Xử lý lỗi nếu cần, ví dụ tạo màu nền mặc định

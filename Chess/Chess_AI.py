@@ -23,7 +23,7 @@ CENTER_SQUARES_EXTENDED = CENTER_SQUARES_MAIN + [(2, 2), (2, 3), (2, 4), (2, 5),
                                              (3, 2), (3, 5), (4, 2), (4, 5),
                                              (5, 2), (5, 3), (5, 4), (5, 5)] # Mở rộng thêm
 
-path_to_model = 'D:/AI/Chess/ChessApp/Chess/model/abdusattorov'
+path_to_model = 'D:/AI/Chess/ChessApp/Chess/model/morphy_cnn'
 
 global model
 # model = tf.saved_model.load(path_to_model)
