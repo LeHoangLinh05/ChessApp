@@ -50,7 +50,7 @@ class GameState:
             for c in range(8):
                 piece = self.board[r][c]
                 if piece != '--':
-                    piece_idx = zobrist.get_zobrist_piece_index(piece)  # Hàm này cần mapping từ 'wP' -> 0, 'bN' -> 1, etc.
+                    piece_idx = zobrist.get_zobrist_piece_index(piece)
                     if piece_idx is not None:
                         square_idx = r * 8 + c
                         h ^= zobrist.zobrist_table[square_idx][piece_idx]
@@ -63,28 +63,19 @@ class GameState:
         if self.current_castling_rights.bks: h ^= zobrist.zobrist_castling_rights[2]  # Giả sử index 2 là bks
         if self.current_castling_rights.bqs: h ^= zobrist.zobrist_castling_rights[3]  # Giả sử index 3 là bqs
 
-        if self.enpassant_possible:  # Nếu có ô en passant hợp lệ
-            # Hash cột của ô en passant (ep_col là index 0-7)
+        if self.enpassant_possible:
             ep_col = self.enpassant_possible[1]
             h ^= zobrist.zobrist_en_passant_file[ep_col]
 
         self.current_hash = h
 
-    # Trong ChessEngine.py, lớp GameState
-    # Trong ChessEngine.py, lớp GameState
-    # Trong ChessEngine.py, lớp GameState
     def get_board_fen_position(self):
-        # print(f"DEBUG: get_board_fen_position called. white_to_move: {self.white_to_move}")
-        # print(f"DEBUG: Board state for FEN generation:")
-        # for r_idx, row_val in enumerate(self.board):
-        #     print(f"  Row {8-r_idx}: {row_val}")
         fen = ""
-        try:  # Thêm try-except ở đây để bắt lỗi cục bộ nếu có
+        try:
             for r in range(8):
                 empty_count = 0
                 for c in range(8):
                     piece = self.board[r][c]
-                    # print(f"DEBUG FEN: Processing piece '{piece}' at ({r},{c})") # Log chi tiết nếu cần
                     if piece == "--":
                         empty_count += 1
                     else:
@@ -94,165 +85,87 @@ class GameState:
                         color = piece[0]
                         p_type = piece[1]
                         fen_char = p_type.upper() if color == 'w' else p_type.lower()
-                        # print(f"DEBUG FEN: Adding '{fen_char}' for piece '{piece}'")
+
                         fen += fen_char
                 if empty_count > 0:
                     fen += str(empty_count)
                 if r < 7:
                     fen += "/"
-            # print(f"DEBUG: FEN generated successfully: '{fen}'")
+
             return fen
         except Exception as e_fen:
             print(f"!!! LỖI BÊN TRONG get_board_fen_position !!!")
             print(f"Lỗi: {e_fen}")
             import traceback
             traceback.print_exc()
-            return "ERROR_GENERATING_FEN"  # Trả về một giá trị lỗi để nhận biết
+            return "ERROR_GENERATING_FEN"
 
-
-    # def makeMove(self, move):
-    #     """
-    #     Takes a Move as a parameter and executes it.
-    #     (this will not work for castling, pawn promotion and en-passant)
-    #     """
-    #     self.board[move.start_row][move.start_col] = "--"
-    #     self.board[move.end_row][move.end_col] = move.piece_moved
-    #     self.move_log.append(move)  # log the move so we can undo it later
-    #     self.white_to_move = not self.white_to_move  # switch players
-    #     # update king's location if moved
-    #     if move.piece_moved == "wK":
-    #         self.white_king_location = (move.end_row, move.end_col)
-    #     elif move.piece_moved == "bK":
-    #         self.black_king_location = (move.end_row, move.end_col)
-    #
-    #     # pawn promotion
-    #     if move.is_pawn_promotion:
-    #         # if not is_AI:
-    #         #    promoted_piece = input("Promote to Q, R, B, or N:") #take this to UI later
-    #         #    self.board[move.end_row][move.end_col] = move.piece_moved[0] + promoted_piece
-    #         # else:
-    #         self.board[move.end_row][move.end_col] = move.piece_moved[0] + "Q"
-    #
-    #     # enpassant move
-    #     if move.is_enpassant_move:
-    #         self.board[move.start_row][move.end_col] = "--"  # capturing the pawn
-    #
-    #     # update enpassant_possible variable
-    #     if move.piece_moved[1] == "p" and abs(move.start_row - move.end_row) == 2:  # only on 2 square pawn advance
-    #         self.enpassant_possible = ((move.start_row + move.end_row) // 2, move.start_col)
-    #     else:
-    #         self.enpassant_possible = ()
-    #
-    #     # castle move
-    #     if move.is_castle_move:
-    #         if move.end_col - move.start_col == 2:  # king-side castle move
-    #             self.board[move.end_row][move.end_col - 1] = self.board[move.end_row][
-    #                 move.end_col + 1]  # moves the rook to its new square
-    #             self.board[move.end_row][move.end_col + 1] = '--'  # erase old rook
-    #         else:  # queen-side castle move
-    #             self.board[move.end_row][move.end_col + 1] = self.board[move.end_row][
-    #                 move.end_col - 2]  # moves the rook to its new square
-    #             self.board[move.end_row][move.end_col - 2] = '--'  # erase old rook
-    #
-    #     self.enpassant_possible_log.append(self.enpassant_possible)
-    #
-    #     # update castling rights - whenever it is a rook or king move
-    #     self.updateCastleRights(move)
-    #     self.castle_rights_log.append(CastleRights(self.current_castling_rights.wks, self.current_castling_rights.bks,
-    #                                                self.current_castling_rights.wqs, self.current_castling_rights.bqs))
-
-    # Trong Class GameState của file ChessEngine.py
 
     def makeMove(self, move: 'Move'):
-        # === GIAI ĐOẠN 1: LƯU TRẠNG THÁI CŨ VÀ CẬP NHẬT BÀN CỜ CƠ BẢN ===
         self.board[move.start_row][move.start_col] = "--"
-        self.board[move.end_row][move.end_col] = move.piece_moved  # Quân di chuyển đến ô đích
-
-        # Lưu trạng thái cũ của en passant và castling rights TRƯỚC KHI chúng bị thay đổi
+        self.board[move.end_row][move.end_col] = move.piece_moved
         old_enpassant_possible = self.enpassant_possible
         old_castle_rights = CastleRights(self.current_castling_rights.wks, self.current_castling_rights.wqs,
                                          self.current_castling_rights.bks, self.current_castling_rights.bqs)
 
-        # === GIAI ĐOẠN 2: XỬ LÝ CÁC NƯỚC ĐI ĐẶC BIỆT VÀ CẬP NHẬT TRẠNG THÁI PHỤ ===
-        # Cập nhật vị trí vua nếu vua di chuyển
         if move.piece_moved == "wK":
             self.white_king_location = (move.end_row, move.end_col)
         elif move.piece_moved == "bK":
             self.black_king_location = (move.end_row, move.end_col)
 
-        # Xử lý phong cấp
         if move.is_pawn_promotion:
-            promoted_piece_type = "Q"  # AI mặc định phong Hậu
-            # Nếu bạn có cách để Move object chứa thông tin quân phong cấp từ UI hoặc từ AI search:
-            # if hasattr(move, 'promoted_to_piece_char') and move.promoted_to_piece_char:
-            #     promoted_piece_type = move.promoted_to_piece_char
+            promoted_piece_type = "Q"
             self.board[move.end_row][move.end_col] = move.piece_moved[0] + promoted_piece_type
-            # Cập nhật lại move.piece_moved nếu cần thiết cho Zobrist sau này, hoặc Zobrist dùng final_piece_on_target
-            # move.promoted_to_piece = move.piece_moved[0] + promoted_piece_type # Để Move object biết nó đã phong thành gì
 
-        # Xử lý bắt quân en passant
         if move.is_enpassant_move:
-            self.board[move.start_row][move.end_col] = "--"  # Xóa quân tốt bị bắt en passant
-
-        # Cập nhật self.enpassant_possible cho nước đi TIẾP THEO
+            self.board[move.start_row][move.end_col] = "--"
         if move.piece_moved[1] == "p" and abs(move.start_row - move.end_row) == 2:  # Tốt đi 2 ô
             self.enpassant_possible = ((move.start_row + move.end_row) // 2, move.start_col)
         else:
             self.enpassant_possible = ()
 
-        # Xử lý di chuyển quân Xe khi nhập thành
         if move.is_castle_move:
-            if move.end_col - move.start_col == 2:  # King-side castle (Vua đi từ e -> g)
-                # Xe từ h -> f
+            if move.end_col - move.start_col == 2:
                 self.board[move.end_row][move.end_col - 1] = self.board[move.end_row][
-                    move.end_col + 1]  # self.board[row][f] = self.board[row][h]
-                self.board[move.end_row][move.end_col + 1] = '--'  # self.board[row][h] = '--'
-            else:  # Queen-side castle (Vua đi từ e -> c)
-                # Xe từ a -> d
+                    move.end_col + 1]
+                self.board[move.end_row][move.end_col + 1] = '--'
+            else:
                 self.board[move.end_row][move.end_col + 1] = self.board[move.end_row][
-                    move.end_col - 2]  # self.board[row][d] = self.board[row][a]
-                self.board[move.end_row][move.end_col - 2] = '--'  # self.board[row][a] = '--'
+                    move.end_col - 2]
+                self.board[move.end_row][move.end_col - 2] = '--'
 
-        # Cập nhật quyền nhập thành
         self.updateCastleRights(move)
 
-        # === GIAI ĐOẠN 3: LOGGING (SAU KHI TẤT CẢ TRẠNG THÁI ĐÃ ỔN ĐỊNH CHO NƯỚC ĐI NÀY) ===
         self.move_log.append(move)
-        self.enpassant_possible_log.append(self.enpassant_possible)  # Log trạng thái ep MỚI
+        self.enpassant_possible_log.append(self.enpassant_possible)
         self.castle_rights_log.append(CastleRights(self.current_castling_rights.wks, self.current_castling_rights.wqs,
                                                    self.current_castling_rights.bks,
-                                                   self.current_castling_rights.bqs))  # Log trạng thái cr MỚI
+                                                   self.current_castling_rights.bqs))
 
-        # === GIAI ĐOẠN 4: CẬP NHẬT ZOBRIST HASH ===
-        # XOR out quân di chuyển ban đầu (move.piece_moved) khỏi ô xuất phát
-        if move.piece_moved != '--':  # Thực ra piece_moved không bao giờ là '--'
+        if move.piece_moved != '--':
             moved_idx = zobrist.get_zobrist_piece_index(move.piece_moved)
             if moved_idx is not None:
                 self.current_hash ^= zobrist.zobrist_table[move.start_row * 8 + move.start_col][moved_idx]
 
-        # XOR out quân bị bắt (move.piece_captured) khỏi ô nó bị bắt
         if move.piece_captured != '--':
             captured_idx = zobrist.get_zobrist_piece_index(move.piece_captured)
             if captured_idx is not None:
-                if move.is_enpassant_move:  # Quân bị bắt ở vị trí khác ô đích của tốt
+                if move.is_enpassant_move:
                     self.current_hash ^= zobrist.zobrist_table[move.start_row * 8 + move.end_col][captured_idx]
-                else:  # Quân bị bắt ở ô đích
+                else:
                     self.current_hash ^= zobrist.zobrist_table[move.end_row * 8 + move.end_col][captured_idx]
 
-        # XOR in quân cuối cùng trên ô đích (sau khi di chuyển, sau phong cấp)
-        final_piece_on_target = self.board[move.end_row][move.end_col]  # Lấy quân thực sự trên bàn cờ
+        final_piece_on_target = self.board[move.end_row][move.end_col]
         if final_piece_on_target != '--':
             final_piece_idx = zobrist.get_zobrist_piece_index(final_piece_on_target)
             if final_piece_idx is not None:
                 self.current_hash ^= zobrist.zobrist_table[move.end_row * 8 + move.end_col][final_piece_idx]
 
-        # Xử lý Zobrist cho việc di chuyển quân Xe khi nhập thành
         if move.is_castle_move:
-            # self.white_to_move hiện tại vẫn là của người vừa đi nước này
             rook_piece_char = 'wR' if self.white_to_move else 'bR'
             rook_idx = zobrist.get_zobrist_piece_index(rook_piece_char)
             if rook_idx is not None:
-                if move.end_col - move.start_col == 2:  # Kingside (Xe từ h1/h8 -> f1/f8)
+                if move.end_col - move.start_col == 2:
                     original_rook_col = 7  # h-file
                     new_rook_col = 5  # f-file
                 else:  # Queenside (Xe từ a1/a8 -> d1/d8)
@@ -260,12 +173,9 @@ class GameState:
                     new_rook_col = 3  # d-file
 
                 self.current_hash ^= zobrist.zobrist_table[move.start_row * 8 + original_rook_col][
-                    rook_idx]  # XOR out Xe ở vị trí cũ
+                    rook_idx]
                 self.current_hash ^= zobrist.zobrist_table[move.start_row * 8 + new_rook_col][
-                    rook_idx]  # XOR in Xe ở vị trí mới
-
-        # Cập nhật Zobrist cho quyền nhập thành đã thay đổi
-        # So sánh old_castle_rights (trước khi updateCastleRights) với self.current_castling_rights (sau khi updateCastleRights)
+                    rook_idx]
         if self.current_castling_rights.wks != old_castle_rights.wks: self.current_hash ^= \
         zobrist.zobrist_castling_rights[0]  # wks
         if self.current_castling_rights.wqs != old_castle_rights.wqs: self.current_hash ^= \
@@ -275,102 +185,41 @@ class GameState:
         if self.current_castling_rights.bqs != old_castle_rights.bqs: self.current_hash ^= \
         zobrist.zobrist_castling_rights[3]  # bqs
 
-        # Cập nhật Zobrist cho en passant
-        # So sánh old_enpassant_possible (trước khi cập nhật) với self.enpassant_possible (sau khi cập nhật)
-        if old_enpassant_possible:  # Nếu có ô ep cũ, XOR out nó
+        if old_enpassant_possible:
             self.current_hash ^= zobrist.zobrist_en_passant_file[old_enpassant_possible[1]]
-        if self.enpassant_possible:  # Nếu có ô ep mới, XOR in nó
+        if self.enpassant_possible:
             self.current_hash ^= zobrist.zobrist_en_passant_file[self.enpassant_possible[1]]
 
-        # Cuối cùng, XOR cho lượt đi (vì self.white_to_move sắp thay đổi)
         self.current_hash ^= zobrist.zobrist_black_to_move
-
-        # === GIAI ĐOẠN 5: ĐỔI LƯỢT CHƠI ===
         self.white_to_move = not self.white_to_move
-
-    # def undoMove(self):
-    #     """
-    #     Undo the last move
-    #     """
-    #     if len(self.move_log) != 0:  # make sure that there is a move to undo
-    #         move = self.move_log.pop()
-    #         self.board[move.start_row][move.start_col] = move.piece_moved
-    #         self.board[move.end_row][move.end_col] = move.piece_captured
-    #         self.white_to_move = not self.white_to_move  # swap players
-    #         # update the king's position if needed
-    #         if move.piece_moved == "wK":
-    #             self.white_king_location = (move.start_row, move.start_col)
-    #         elif move.piece_moved == "bK":
-    #             self.black_king_location = (move.start_row, move.start_col)
-    #         # undo en passant move
-    #         if move.is_enpassant_move:
-    #             self.board[move.end_row][move.end_col] = "--"  # leave landing square blank
-    #             self.board[move.start_row][move.end_col] = move.piece_captured
-    #
-    #         self.enpassant_possible_log.pop()
-    #         self.enpassant_possible = self.enpassant_possible_log[-1]
-    #
-    #         # undo castle rights
-    #         self.castle_rights_log.pop()  # get rid of the new castle rights from the move we are undoing
-    #         self.current_castling_rights = self.castle_rights_log[
-    #             -1]  # set the current castle rights to the last one in the list
-    #         # undo the castle move
-    #         if move.is_castle_move:
-    #             if move.end_col - move.start_col == 2:  # king-side
-    #                 self.board[move.end_row][move.end_col + 1] = self.board[move.end_row][move.end_col - 1]
-    #                 self.board[move.end_row][move.end_col - 1] = '--'
-    #             else:  # queen-side
-    #                 self.board[move.end_row][move.end_col - 2] = self.board[move.end_row][move.end_col + 1]
-    #                 self.board[move.end_row][move.end_col + 1] = '--'
-    #         self.checkmate = False
-    #         self.stalemate = False
-
-    # Trong Class GameState của file ChessEngine.py
 
     def undoMove(self):
-        if not self.move_log:  # Kiểm tra xem có nước đi nào để hoàn tác không
+        if not self.move_log:
             return
 
-        # === GIAI ĐOẠN 1: LẤY NƯỚC ĐI CẦN HOÀN TÁC VÀ HOÀN TÁC CÁC THAY ĐỔI TRẠNG THÁI CƠ BẢN ===
-        move = self.move_log.pop()  # Lấy nước đi cuối cùng ra khỏi log
 
-        # Hoàn tác các thay đổi trên bàn cờ
-        self.board[move.start_row][move.start_col] = move.piece_moved  # Đặt lại quân đã di chuyển về ô cũ
-        self.board[move.end_row][move.end_col] = move.piece_captured  # Đặt lại quân đã bị bắt về ô nó bị bắt
+        move = self.move_log.pop()
+        self.board[move.start_row][move.start_col] = move.piece_moved
+        self.board[move.end_row][move.end_col] = move.piece_captured
 
-        # Hoàn tác lượt đi
         self.white_to_move = not self.white_to_move
 
-        # Hoàn tác vị trí vua nếu vua đã di chuyển
         if move.piece_moved == "wK":
             self.white_king_location = (move.start_row, move.start_col)
         elif move.piece_moved == "bK":
             self.black_king_location = (move.start_row, move.start_col)
 
-        # Hoàn tác en passant
-        # Quan trọng: self.enpassant_possible_log lưu trạng thái enpassant SAU mỗi nước đi.
-        # Khi undo, chúng ta pop trạng thái ep của nước đi vừa undo,
-        # và self.enpassant_possible sẽ là trạng thái ep TRƯỚC nước đi đó.
         self.enpassant_possible_log.pop()
-        self.enpassant_possible = self.enpassant_possible_log[-1]  # Lấy lại trạng thái ep trước đó
+        self.enpassant_possible = self.enpassant_possible_log[-1]
 
         if move.is_enpassant_move:
-            self.board[move.end_row][move.end_col] = "--"  # Ô đích của tốt đi en passant trở thành trống
-            # Quân tốt bị bắt đã được đặt lại ở trên bằng self.board[move.end_row][move.end_col] = move.piece_captured
-            # Tuy nhiên, quân tốt bị bắt en passant nằm ở (move.start_row, move.end_col)
-            # self.piece_captured trong Move object của en passant đã được gán là 'wp' hoặc 'bp'
+            self.board[move.end_row][move.end_col] = "--"
             self.board[move.start_row][move.end_col] = move.piece_captured
 
-            # Hoàn tác quyền nhập thành
-        # Tương tự enpassant, pop trạng thái castle rights của nước đi vừa undo,
-        # và current_castling_rights sẽ là trạng thái TRƯỚC nước đi đó.
         self.castle_rights_log.pop()
-        self.current_castling_rights = self.castle_rights_log[-1]  # Lấy lại quyền nhập thành trước đó
-
-        # Hoàn tác di chuyển quân Xe khi nhập thành
+        self.current_castling_rights = self.castle_rights_log[-1]
         if move.is_castle_move:
             if move.end_col - move.start_col == 2:  # King-side (Vua từ e -> g, Xe từ h -> f)
-                # Đưa Xe từ f về h
                 self.board[move.end_row][move.end_col + 1] = self.board[move.end_row][
                     move.end_col - 1]  # self.board[row][h] = self.board[row][f]
                 self.board[move.end_row][move.end_col - 1] = '--'  # self.board[row][f] = '--'
@@ -380,19 +229,8 @@ class GameState:
                     move.end_col + 1]  # self.board[row][a] = self.board[row][d]
                 self.board[move.end_row][move.end_col + 1] = '--'  # self.board[row][d] = '--'
 
-        # Hoàn tác phong cấp (nếu có)
-        # Nếu phong cấp, move.piece_moved là quân tốt gốc.
-        # Quân trên bàn cờ (self.board[move.start_row][move.start_col]) đã được đặt lại là tốt gốc.
-        # Không cần làm gì thêm ở đây vì piece_moved đã là tốt.
-
-        # Reset trạng thái checkmate/stalemate
         self.checkmate = False
         self.stalemate = False
-        # self.in_check, self.pins, self.checks sẽ được tính lại khi getValidMoves được gọi.
-
-        # === GIAI ĐOẠN 2: TÍNH TOÁN LẠI ZOBRIST HASH ===
-        # Sau khi tất cả các trạng thái đã được hoàn tác về trạng thái TRƯỚC nước đi,
-        # tính toán lại toàn bộ Zobrist hash.
         self.compute_initial_hash()
 
     def get_current_zobrist_hash(self):
@@ -561,12 +399,6 @@ class GameState:
                             break
                     elif end_piece[0] == enemy_color:
                         enemy_type = end_piece[1]
-                        # 5 possibilities in this complex conditional
-                        # 1.) orthogonally away from king and piece is a rook
-                        # 2.) diagonally away from king and piece is a bishop
-                        # 3.) 1 square away diagonally from king and piece is a pawn
-                        # 4.) any direction and piece is a queen
-                        # 5.) any direction 1 square away and piece is a king
                         if (0 <= j <= 3 and enemy_type == "R") or (4 <= j <= 7 and enemy_type == "B") or (
                                 i == 1 and enemy_type == "p" and (
                                 (enemy_color == "w" and 6 <= j <= 7) or (enemy_color == "b" and 4 <= j <= 5))) or (
@@ -826,7 +658,7 @@ class GameState:
 
 
 class CastleRights:
-    def __init__(self, wks, wqs, bks, bqs): # THỨ TỰ CHUẨN: wks, wqs, bks, bqs
+    def __init__(self, wks, wqs, bks, bqs):
         self.wks = wks
         self.wqs = wqs # Sửa ở đây
         self.bks = bks

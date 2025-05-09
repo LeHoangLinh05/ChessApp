@@ -19,7 +19,6 @@ zobrist_en_passant_file = [0] * 8   # Index 0:file a, ..., 7:file h
 
 def init_zobrist():
     global zobrist_black_to_move, zobrist_castling_rights, zobrist_en_passant_file
-    # random.seed(12345) # Dùng seed cố định để debug, xóa khi chạy thực tế
 
     for i in range(SQUARES):
         for j in range(PIECE_TYPES):
@@ -29,12 +28,9 @@ def init_zobrist():
         zobrist_castling_rights[i] = random.getrandbits(64)
     for i in range(8):
         zobrist_en_passant_file[i] = random.getrandbits(64)
-    print("Bảng Zobrist đã được khởi tạo (bao gồm castling và en passant).")
 
 init_zobrist()
 
 def get_zobrist_piece_index(piece_string):
-    # Nếu GameState.board dùng 'wP', 'bP' nhưng map dùng 'wp', 'bp', cần chuẩn hóa ở đây
-    # if piece_string == 'wP': piece_string = 'wp'
-    # elif piece_string == 'bP': piece_string = 'bp'
+
     return zobrist_piece_map.get(piece_string)

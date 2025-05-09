@@ -19,11 +19,11 @@ SQUARE_SIZE = BOARD_HEIGHT // DIMENSION
 MAX_FPS = 15
 IMAGES = {}
 
-# Kích thước cửa sổ
+
 WIDTH, HEIGHT = BOARD_WIDTH + MOVE_LOG_PANEL_WIDTH, BOARD_HEIGHT
 BUTTON_WIDTH, BUTTON_HEIGHT = 200, 50
 scroll_y = 0
-# Màu sắc
+
 WHITE = p.Color("white")
 BLACK = p.Color("black")
 GREY = p.Color("grey")
@@ -103,7 +103,6 @@ def game_mode_menu(screen, font, background, wood_tex, buttons_game_mode): # Th�
             draw_button(screen, button_text, x, y, font, wood_tex) # Truyền tham số
 
         for event in p.event.get():
-            # ... (Xử lý sự kiện và trả về như cũ) ...
             if event.type == p.QUIT:
                 p.quit()
                 sys.exit()
@@ -128,7 +127,6 @@ def ai_level_menu(screen, font, background, wood_tex, buttons_ai_level): # Thêm
             draw_button(screen, button_text, x, y, font, wood_tex) # Truyền tham số
 
         for event in p.event.get():
-            # ... (Xử lý sự kiện và trả về như cũ) ...
             if event.type == p.QUIT:
                 p.quit()
                 sys.exit()
@@ -151,14 +149,11 @@ def loadImages():
     pieces = ['wp', 'wR', 'wN', 'wB', 'wK', 'wQ', 'bp', 'bR', 'bN', 'bB', 'bK', 'bQ']
     for piece in pieces:
         try:
-            # Chỉ load, chưa scale hay convert ở đây nếu muốn linh hoạt
-            # Hoặc nếu chắc chắn dùng scale thì làm luôn:
             image = p.image.load("images/" + piece + ".png")
             IMAGES[piece] = p.transform.scale(image, (SQUARE_SIZE, SQUARE_SIZE))
         except p.error as e:
             print(f"Lỗi tải ảnh {piece}: {e}")
-            # Có thể thêm ảnh mặc định hoặc xử lý lỗi khác
-            IMAGES[piece] = p.Surface((SQUARE_SIZE, SQUARE_SIZE)) # Tạo surface trống nếu lỗi
+            IMAGES[piece] = p.Surface((SQUARE_SIZE, SQUARE_SIZE))
             IMAGES[piece].fill(GREY)
 
 def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_level=None):
@@ -167,8 +162,7 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
     valid_moves = game_state.getValidMoves()
     move_made = False
     animate = False
-    # loadImages() # Tải ảnh một lần TRƯỚC KHI gọi run_game
-    global scroll_y  # Khai báo để drawMoveLog có thể dùng scroll_y
+    global scroll_y
     scroll_y = 0
     square_selected = ()
     player_clicks = []
@@ -176,32 +170,22 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
     ai_thinking = False
     move_undone = False
     move_finder_process = None
-    end_game_text = "" # Khởi tạo end_game_text
+    end_game_text = ""
 
     running = True
     while running:
         human_turn = (game_state.white_to_move and player_one) or (not game_state.white_to_move and player_two)
 
-        # --- Xử lý sự kiện ---
         for e in p.event.get():
-            handle_scroll(e) # Đảm bảo handle_scroll được định nghĩa hoặc xóa nếu không dùng
+            handle_scroll(e)
             if e.type == p.QUIT:
                 p.quit()
                 sys.exit()
 
-
-            # Trong hàm run_game, vòng lặp xử lý sự kiện
-
             elif e.type == p.MOUSEBUTTONDOWN:
 
-                location = p.mouse.get_pos()  # Lấy vị trí click
-
-                # --- Xử lý click trên bàn cờ (Chỉ khi game chưa kết thúc) ---
-
+                location = p.mouse.get_pos()
                 if not game_over and 0 <= location[0] < BOARD_WIDTH and 0 <= location[1] < BOARD_HEIGHT:
-
-                    # Chỉ xử lý click BÀN CỜ khi game chưa over
-
                     col = location[0] // SQUARE_SIZE
 
                     row = location[1] // SQUARE_SIZE
@@ -244,29 +228,15 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
                         if not move_found:
                             player_clicks = [square_selected]
 
-                        # Không cần kiểm tra game_over ở đây nữa, sẽ kiểm tra ở cuối vòng lặp chính
-
-
-                # --- Xử lý click nút (Luôn kiểm tra, bất kể game_over) ---
-
-                # Chỉ xử lý click chuột trái cho các nút
-
                 elif e.button == 1:
-
-                    # Lấy Rect của các nút (cần có các hàm này hoặc tính toán vị trí)
-
-                    # Ví dụ: Giả sử bạn có hàm get...Rect() trả về Rect của nút
 
                     back_button_rect = drawBackButton(screen, font, game_state)
                     reset_button_rect = drawResetButton(screen, font, game_state)
                     surrender_button_rect = drawSurrenderButton(screen, font, game_state)
                     return_button_rect = drawReturnButton(screen, font, game_state)
 
-                    # Kiểm tra va chạm với các nút
 
                     if back_button_rect.collidepoint(location):
-
-                        # Chỉ cho phép undo nếu game chưa kết thúc? (Thường là vậy)
 
                         if not game_over:
 
@@ -274,11 +244,9 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
 
                             game_state.undoMove()
 
-                            move_made = True  # Để tính lại valid_moves
+                            move_made = True
 
                             animate = False
-
-                            # game_over = False # Undo không làm game hết kết thúc trừ khi bạn muốn logic đó
 
                             if ai_thinking:
 
@@ -291,7 +259,7 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
 
                             valid_moves = game_state.getValidMoves()
 
-                            end_game_text = ""  # Xóa text kết thúc nếu có
+                            end_game_text = ""
 
                         else:
 
@@ -302,9 +270,7 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
 
                         print("Reset button clicked.")
 
-                        # Reset luôn được phép
-
-                        game_state = ChessEngine.GameState()  # Reset trạng thái
+                        game_state = ChessEngine.GameState()
 
                         valid_moves = game_state.getValidMoves()
 
@@ -316,21 +282,19 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
 
                         animate = False
 
-                        game_over = False  # QUAN TRỌNG: Reset cờ này
+                        game_over = False
 
-                        ai_thinking = False  # Dừng AI nếu đang nghĩ
+                        ai_thinking = False
 
                         if move_finder_process and move_finder_process.is_alive():
                             move_finder_process.terminate()
 
-                        move_undone = True  # Ngăn AI đi ngay
+                        move_undone = True
 
-                        end_game_text = ""  # Xóa text kết thúc
+                        end_game_text = ""
 
 
                     elif surrender_button_rect.collidepoint(location):
-
-                        # Chỉ cho phép đầu hàng nếu game chưa kết thúc? (Hợp lý)
 
                         if not game_over:
 
@@ -340,9 +304,7 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
 
                             winner = "Black" if game_state.white_to_move else "White"
 
-                            end_game_text = f"{winner} wins by Surrender"
-
-                            # Dừng AI nếu đang nghĩ
+                            end_game_text = f"{winner} wins by Resign"
 
                             if ai_thinking:
 
@@ -350,7 +312,6 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
                                     move_finder_process.terminate()
 
                                 ai_thinking = False
-
                         else:
 
                             print("Cannot surrender: Game is already over.")
@@ -361,11 +322,7 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
 
                         print("Return button clicked.")
 
-                        # Return luôn được phép
-
-                        running = False  # Thoát khỏi vòng lặp game
-
-                        # Dừng tiến trình AI nếu đang chạy
+                        running = False
 
                         if ai_thinking:
 
@@ -384,52 +341,44 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
                 ai_thinking = True
                 return_queue = multiprocessing.Queue()
                 ai_is_maximising = False
-                # Truyền đúng ai_level đã được xác định trong main_loop
                 move_finder_process = multiprocessing.Process(target=Chess_AI2.find_best_move_iddfs,
                                               args=(game_state, ai_level, return_queue, ai_is_maximising))
                 move_finder_process.start()
-
-            # Chỉ kiểm tra nếu tiến trình AI đã được khởi tạo
             if ai_thinking and move_finder_process and not move_finder_process.is_alive():
                 ai_move = return_queue.get()
                 if ai_move is None:
                     print("AI trả về None (hoặc lỗi), tìm nước đi ngẫu nhiên.")
                     ai_move = Chess_AI2.findRandomMove(valid_moves) # Sử dụng valid_moves hiện tại
 
-                if ai_move: # Đảm bảo thực sự tìm/trả về được nước đi
+                if ai_move:
                     game_state.makeMove(ai_move)
                     move_made = True
                     animate = True
                 else:
                     print("Lỗi: AI không thể tìm thấy bất kỳ nước đi nào.")
-                    # Xử lý trường hợp này - có thể là hòa cờ hoặc AI thua?
+
                     game_over = True
                     end_game_text = "Lỗi: AI không thể đi"
 
-                ai_thinking = False # Đặt lại cờ
-
-
-        # --- Cập nhật trạng thái game sau nước đi ---
+                ai_thinking = False
         if move_made:
             if animate:
                 animateMove(game_state.move_log[-1], screen, game_state.board, clock)
             valid_moves = game_state.getValidMoves()
             move_made = False
             animate = False
-            move_undone = False # Đặt lại cờ undo
+            move_undone = False
 
         # --- Vẽ đồ họa ---
         drawGameState(screen, game_state, valid_moves, square_selected)
-        drawMoveLog(screen, game_state, move_log_font) # Sử dụng font đã truyền
-        drawCustomPanel(screen, font) # Sử dụng font đã truyền
-        # Vẽ các nút (cũng cần cho việc kiểm tra va chạm ở frame sau)
+        drawMoveLog(screen, game_state, move_log_font)
+        drawCustomPanel(screen, font)
         back_button_rect = drawBackButton(screen, font, game_state)
         reset_button_rect = drawResetButton(screen, font, game_state)
         surrender_button_rect = drawSurrenderButton(screen, font, game_state)
         return_button_rect = drawReturnButton(screen, font, game_state)
 
-        # --- Kiểm tra Game Over và hiển thị Text ---
-        if not game_over: # Chỉ kiểm tra nếu chưa kết thúc
+        if not game_over:
              if game_state.checkmate:
                  game_over = True
                  end_game_text = ("Black" if game_state.white_to_move else "White") + " win by Checkmate"
@@ -440,42 +389,34 @@ def run_game(screen, clock, font, move_log_font, player_one, player_two, ai_leve
         if game_over:
              drawEndGameText(screen, end_game_text)
 
-        # --- Cập nhật màn hình và tick clock ---
-        p.display.flip()
-        clock.tick(MAX_FPS) # Sử dụng hằng số MAX_FPS của bạn
 
-    # --- Kết thúc run_game ---
+        p.display.flip()
+        clock.tick(MAX_FPS)
     print("Thoát khỏi phiên chơi.")
 
 
 def main_loop():
     """Xử lý menu và bắt đầu các phiên chơi."""
-    # --- Thiết lập Pygame và tài nguyên một lần ---
     p.init()
-    screen = p.display.set_mode((WIDTH, HEIGHT)) # Sử dụng hằng số
+    screen = p.display.set_mode((WIDTH, HEIGHT))
     p.display.set_caption("Chess")
     clock = p.time.Clock()
-    # Tải font một lần
-    font = p.font.SysFont("Verdana", 23) # Font bạn đã định nghĩa
-    move_log_font = p.font.SysFont("Arial", 14, False, False) # Font bạn đã định nghĩa
-    loadImages() # Tải hình ảnh một lần
+    font = p.font.SysFont("Verdana", 23)
+    move_log_font = p.font.SysFont("Arial", 14, False, False)
+    loadImages()
 
     try:
         wood_tex = p.image.load("assets/wood_texture.png").convert()
         wood_tex = p.transform.scale(wood_tex, (BUTTON_WIDTH, BUTTON_HEIGHT))
-        background = p.image.load("images/background.jpg").convert()  # Thêm convert()
+        background = p.image.load("images/background.jpg").convert()
         background = p.transform.scale(background, (WIDTH, HEIGHT))
     except p.error as e:
-        print(f"Lỗi tải ảnh nền/nút: {e}")
-        # Xử lý lỗi nếu cần, ví dụ tạo màu nền mặc định
         wood_tex = p.Surface((BUTTON_WIDTH, BUTTON_HEIGHT));
         wood_tex.fill(GREY)
         background = p.Surface((WIDTH, HEIGHT));
         background.fill(BLACK)
 
     loadImages()
-
-    # Định nghĩa vị trí nút ở đây để truyền vào hàm menu
     buttons_main = {
         "Start Game": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 4 - BUTTON_HEIGHT // 2 + 20),
         "Quit": (WIDTH // 2 - BUTTON_WIDTH // 2 - 200, HEIGHT // 2 + 30 - BUTTON_HEIGHT // 2)
@@ -490,7 +431,6 @@ def main_loop():
     }
 
     while True:
-        # Giả định các hàm menu sử dụng screen, main_font đúng cách
         result = main_menu(screen, font, background, wood_tex, buttons_main)
         if result == "start_game":
             mode_result = game_mode_menu(screen, font, background, wood_tex, buttons_game_mode)
@@ -502,18 +442,15 @@ def main_loop():
             if mode_result == "player_vs_ai":
                 player_two = False # Đen là AI
                 ai_level = ai_level_menu(screen, font, background, wood_tex, buttons_ai_level)
-                print(f"Đã chọn độ khó AI: {ai_level}")
             elif mode_result == "player_vs_player":
                 print("Đã chọn chế độ Người vs Người")
-            else: # Xử lý trường hợp trả về không mong muốn từ menu
-                 continue # Quay lại main menu
-
+            else:
+                 continue
             # --- Bắt đầu game thực tế ---
             run_game(screen, clock, font, move_log_font, player_one, player_two, ai_level)
-            # --- Sau khi run_game kết thúc (vd: nhấn "Return"), vòng lặp tiếp tục về main_menu ---
 
         elif result == "quit":
-            break # Thoát khỏi vòng lặp chính
+            break
 
     p.quit()
     sys.exit()
