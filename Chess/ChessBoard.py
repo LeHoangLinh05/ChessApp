@@ -7,6 +7,7 @@ import pygame
 import pygame as p
 import ChessEngine, ChessAI
 import sys
+import os
 from multiprocessing import Process, Queue
 
 BOARD_WIDTH = BOARD_HEIGHT = 512
@@ -36,9 +37,12 @@ p.display.set_caption("Chess")
 # Phông chữ
 font = p.font.SysFont("Verdana", 23)
 move_log_font = p.font.SysFont("Verdana", 30, False, False)
-wood_tex = p.image.load("assets/wood_texture.png").convert()
+current_dir = os.path.dirname(os.path.abspath(__file__))
+asset_dir = os.path.join(current_dir, "assets")
+image_dir = os.path.join(current_dir, "images")
+wood_tex = p.image.load(os.path.join(asset_dir, "wood_texture.png")).convert()
 wood_tex = p.transform.scale(wood_tex, (BUTTON_WIDTH, BUTTON_HEIGHT))
-background = p.image.load("images/background.jpg")
+background = p.image.load(os.path.join(image_dir, "background.jpg"))
 background = p.transform.scale(background, (WIDTH, HEIGHT))
 
 
@@ -169,7 +173,16 @@ def loadImages():
     """
     pieces = ['wp', 'wR', 'wN', 'wB', 'wK', 'wQ', 'bp', 'bR', 'bN', 'bB', 'bK', 'bQ']
     for piece in pieces:
-        IMAGES[piece] = p.transform.scale(p.image.load("images/" + piece + ".png"), (SQUARE_SIZE, SQUARE_SIZE))
+        image_path = os.path.join(image_dir, piece + ".png")
+        if not os.path.exists(image_path):
+            raise FileNotFoundError(f"Không tìm thấy file hình ảnh: {image_path}")
+        IMAGES[piece] = p.transform.scale(p.image.load(image_path), (SQUARE_SIZE, SQUARE_SIZE))
+    
+    # Tải các nút điều khiển
+    IMAGES["back"] = p.image.load(os.path.join(image_dir, "back.png"))
+    IMAGES["reset"] = p.image.load(os.path.join(image_dir, "reset.png"))
+    IMAGES["surrender"] = p.image.load(os.path.join(image_dir, "surrender.png"))
+    IMAGES["return"] = p.image.load(os.path.join(image_dir, "return.png"))
 
 
 def main():
@@ -434,32 +447,28 @@ def drawCustomPanel(screen, font):
 
 def drawBackButton(screen, font, game_state):
     back_button_rect = p.Rect(BOARD_WIDTH + 22, MOVE_LOG_PANEL_HEIGHT + 25, 100, 50)
-    back_button_image = p.image.load("images/back.png")
-    back_button_image = p.transform.smoothscale(back_button_image, (70, 70))
+    back_button_image = p.transform.smoothscale(IMAGES["back"], (70, 70))
     screen.blit(back_button_image, back_button_rect.topleft)
     return back_button_rect
 
 def drawResetButton(screen, font, game_state):
     reset_button_rect = p.Rect(BOARD_WIDTH + 92, MOVE_LOG_PANEL_HEIGHT + 25, 100, 50)
-    reset_button_image = p.image.load("images/reset.png")
-    reset_button_image = p.transform.smoothscale(reset_button_image, (70, 70))
+    reset_button_image = p.transform.smoothscale(IMAGES["reset"], (70, 70))
     screen.blit(reset_button_image, reset_button_rect.topleft)
     return reset_button_rect
 
 def drawSurrenderButton(screen, font, game_state):
     surrender_button_rect = p.Rect(BOARD_WIDTH + 162, MOVE_LOG_PANEL_HEIGHT + 25, 100, 50)
-    surrender_button_image = p.image.load("images/surrender.png")
-    surrender_button_image = p.transform.smoothscale(surrender_button_image, (70, 70))
+    surrender_button_image = p.transform.smoothscale(IMAGES["surrender"], (70, 70))
     screen.blit(surrender_button_image, surrender_button_rect.topleft)
     return surrender_button_rect
 
-
 def drawReturnButton(screen, font, game_state):
     return_button_rect = p.Rect(BOARD_WIDTH + 230, MOVE_LOG_PANEL_HEIGHT + 110, 100, 50)
-    return_button_image = p.image.load("images/return.png")
-    return_button_image = p.transform.smoothscale(return_button_image, (20, 20))
+    return_button_image = p.transform.smoothscale(IMAGES["return"], (20, 20))
     screen.blit(return_button_image, return_button_rect.topleft)
     return return_button_rect
+
 
 
 def drawEndGameText(screen, text):
