@@ -96,14 +96,14 @@ piece_position_scores = {
 
 CHECKMATE = 10000
 STALEMATE = 0
-DEPTH = 3
+DEPTH = 4
 
 def get_depth_for_level(level):
     """Trả về độ sâu tìm kiếm dựa trên cấp độ AI"""
     if level == "easy":
         return 2  
     elif level == "hard":
-        return 3 
+        return 4 
     
 def order_moves(game_state, valid_moves):
     """
@@ -118,14 +118,23 @@ def order_moves(game_state, valid_moves):
     return sorted(valid_moves, key=move_score, reverse=True)
 
 
-def findBestMove(game_state, valid_moves,ai_level, return_queue):
+def findBestMove(game_state, valid_moves, ai_level, return_queue):
+    """
+    Tìm kiếm tăng dần từ độ sâu 1 đến độ sâu tối đa để tìm nước đi tốt nhất.
+    """
     global next_move
     next_move = None
-    depth = get_depth_for_level(ai_level)  
-    random.shuffle(valid_moves)
-    findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, -CHECKMATE, CHECKMATE,
-                             1 if game_state.white_to_move else -1)
+    transposition_table.clear()  
+
+    max_depth = get_depth_for_level(ai_level)  
+
+    for depth in range(1, max_depth + 1):
+        findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, -CHECKMATE, CHECKMATE,
+                                 1 if game_state.white_to_move else -1)
+    
+
     return_queue.put(next_move)
+
 
 def quiescence_search(game_state, alpha, beta, turn_multiplier):
     """
@@ -153,14 +162,20 @@ def quiescence_search(game_state, alpha, beta, turn_multiplier):
     return alpha
 
 
+transposition_table = {}
+
 def findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, alpha, beta, turn_multiplier):
     """
-    NegaMax với Alpha-Beta Pruning, kèm Quiescence Search để tăng hiệu suất.
+    NegaMax với Alpha-Beta Pruning, hỗ trợ Tìm kiếm Tăng Dần và Bảng băm.
     """
     global next_move
 
+    board_key = str(game_state.board) + str(game_state.white_to_move)
+    if board_key in transposition_table and transposition_table[board_key]['depth'] >= depth:
+        return transposition_table[board_key]['score']
+
     if depth == 0 or len(valid_moves) == 0:
-        return turn_multiplier * quiescence_search(game_state, alpha, beta, turn_multiplier)
+        return turn_multiplier * scoreBoard(game_state)
 
     valid_moves = order_moves(game_state, valid_moves)
     max_score = -CHECKMATE  
@@ -174,14 +189,14 @@ def findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, alpha, beta, turn_m
 
         if score > max_score:
             max_score = score
-            if depth == DEPTH:
+            if depth == DEPTH:  
                 next_move = move
 
         alpha = max(alpha, max_score)
-
         if alpha >= beta:
             break
 
+    transposition_table[board_key] = {"score": max_score, "depth": depth}
     return max_score
 
 
