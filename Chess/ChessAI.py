@@ -96,45 +96,95 @@ piece_position_scores = {
 
 CHECKMATE = 10000
 STALEMATE = 0
-DEPTH = 4
+DEPTH = 3
 
 def get_depth_for_level(level):
     """Trả về độ sâu tìm kiếm dựa trên cấp độ AI"""
     if level == "easy":
-        return 2  # Tìm kiếm ít bước
+        return 2  
     elif level == "hard":
-        return 3 # Tìm kiếm sâu nhất
+        return 3 
+    
+def order_moves(game_state, valid_moves):
+    """
+    Sắp xếp các nước đi dựa trên giá trị của quân bị bắt (Capture Move ưu tiên).
+    """
+    def move_score(move):
+        target_square = game_state.board[move.end_row][move.end_col]
+        if target_square != "--":
+            return piece_score.get(target_square[1], 0)  
+        return 0
+
+    return sorted(valid_moves, key=move_score, reverse=True)
+
 
 def findBestMove(game_state, valid_moves,ai_level, return_queue):
     global next_move
     next_move = None
-    depth = get_depth_for_level(ai_level)  # Xác định độ sâu tìm kiếm theo cấp độ
+    depth = get_depth_for_level(ai_level)  
     random.shuffle(valid_moves)
     findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, -CHECKMATE, CHECKMATE,
                              1 if game_state.white_to_move else -1)
     return_queue.put(next_move)
 
+def quiescence_search(game_state, alpha, beta, turn_multiplier):
+    """
+    Tìm kiếm yên tĩnh để tránh cắt tỉa các nước đi ăn quân hoặc gây thay đổi lớn.
+    """
+    stand_pat = turn_multiplier * scoreBoard(game_state)
+
+    if stand_pat >= beta:
+        return beta
+    if alpha < stand_pat:
+        alpha = stand_pat
+
+    capture_moves = [move for move in game_state.getValidMoves() if game_state.board[move.end_row][move.end_col] != "--"]
+    capture_moves = order_moves(game_state, capture_moves)
+
+    for move in capture_moves:
+        game_state.makeMove(move)
+        score = -quiescence_search(game_state, -beta, -alpha, -turn_multiplier)
+        game_state.undoMove()
+
+        if score >= beta:
+            return beta
+        alpha = max(alpha, score)
+
+    return alpha
+
 
 def findMoveNegaMaxAlphaBeta(game_state, valid_moves, depth, alpha, beta, turn_multiplier):
+    """
+    NegaMax với Alpha-Beta Pruning, kèm Quiescence Search để tăng hiệu suất.
+    """
     global next_move
-    if depth == 0:
-        return turn_multiplier * scoreBoard(game_state)
-    # move ordering - implement later //TODO
-    max_score = -CHECKMATE
+
+    if depth == 0 or len(valid_moves) == 0:
+        return turn_multiplier * quiescence_search(game_state, alpha, beta, turn_multiplier)
+
+    valid_moves = order_moves(game_state, valid_moves)
+    max_score = -CHECKMATE  
+
     for move in valid_moves:
         game_state.makeMove(move)
         next_moves = game_state.getValidMoves()
+
         score = -findMoveNegaMaxAlphaBeta(game_state, next_moves, depth - 1, -beta, -alpha, -turn_multiplier)
+        game_state.undoMove()
+
         if score > max_score:
             max_score = score
             if depth == DEPTH:
                 next_move = move
-        game_state.undoMove()
-        if max_score > alpha:
-            alpha = max_score
+
+        alpha = max(alpha, max_score)
+
         if alpha >= beta:
             break
+
     return max_score
+
+
 
 
 def scoreBoard(game_state):

@@ -218,7 +218,7 @@ class GameState:
             king_col = self.black_king_location[1]
         if self.in_check:
             if len(self.checks) == 1:  # only 1 check, block the check or move the king
-                moves = self.getAllPossibleMoves()
+                moves = self.getAllPossibleMoves(exclude_king = True)
                 # to block the check you must put a piece into one of the squares between the enemy piece and your king
                 check = self.checks[0]  # check information
                 check_row = check[0]
@@ -277,25 +277,28 @@ class GameState:
         """
         Determine if enemy can attack the square row col
         """
-        self.white_to_move = not self.white_to_move  # switch to opponent's point of view
-        opponents_moves = self.getAllPossibleMoves()
-        self.white_to_move = not self.white_to_move
-        for move in opponents_moves:
-            if move.end_row == row and move.end_col == col:  # square is under attack
+        self.white_to_move = not self.white_to_move  # Đổi lượt để kiểm tra nước đi của đối thủ
+        opponent_moves = self.getAllPossibleMoves(exclude_king=True)  # Không kiểm tra nước đi của Vua
+        self.white_to_move = not self.white_to_move  # Đổi lại lượt
+
+        for move in opponent_moves:
+            if move.end_row == row and move.end_col == col:
                 return True
         return False
 
-    def getAllPossibleMoves(self):
+    def getAllPossibleMoves(self, exclude_king=False):
         """
         All moves without considering checks.
         """
         moves = []
         for row in range(len(self.board)):
             for col in range(len(self.board[row])):
-                turn = self.board[row][col][0]
-                if (turn == "w" and self.white_to_move) or (turn == "b" and not self.white_to_move):
-                    piece = self.board[row][col][1]
-                    self.moveFunctions[piece](row, col, moves)  # calls appropriate move function based on piece type
+                piece = self.board[row][col]
+                if piece[0] == ("w" if self.white_to_move else "b"):  # Đúng màu quân cờ
+                    piece_type = piece[1]  # Lấy loại quân ('p', 'R', 'N', 'B', 'Q', 'K')
+                    if exclude_king and piece_type == "K":  # Bỏ qua nước đi của Vua nếu cần
+                        continue
+                    self.moveFunctions[piece_type](row, col, moves)  # Gọi hàm tương ứng dựa trên loại quân
         return moves
 
     def checkForPinsAndChecks(self):
