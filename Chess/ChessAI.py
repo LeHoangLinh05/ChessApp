@@ -2,9 +2,76 @@
 Handling the AI moves.
 """
 import random
+import torch
+import torch.nn as nn
 import numpy as np
-import ChessEngine
-from functools import lru_cache
+import os
+from ChessEngine import Move
+import chess
+
+class ChessNet(nn.Module):
+    def __init__(self):
+        super(ChessNet, self).__init__()
+        self.conv1 = nn.Conv2d(12, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        self.fc1 = nn.Linear(64 * 8 * 8, 4096)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        x = torch.relu(self.conv1(x))
+        x = torch.relu(self.conv2(x))
+        x = x.view(x.size(0), -1)
+        return self.softmax(self.fc1(x))
+    
+# Load mô hình đã huấn luyện
+model = ChessNet()
+model_path = "train_models/chess_ai_model.pth"  # Đường dẫn mới bạn đã dùng
+if os.path.exists(model_path):
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+    model.eval()
+else:
+    print("⚠️ Không tìm thấy model. Sẽ dùng random move.")
+    model = None
+    
+def board_to_tensor(board):
+    piece_to_index = {"p": 0, "n": 1, "b": 2, "r": 3, "q": 4, "k": 5,
+                      "P": 6, "N": 7, "B": 8, "R": 9, "Q": 10, "K": 11}
+    tensor = np.zeros((12, 8, 8), dtype=np.float32)
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece:
+            row = 7 - (square // 8)
+            col = square % 8
+            tensor[piece_to_index[piece.symbol()]][row][col] = 1
+    return torch.tensor(tensor).unsqueeze(0)  # (1, 12, 8, 8)
+
+def findBestMoveFromModel(game_state, valid_moves):
+    if model is None:
+        import random
+        return random.choice(valid_moves)
+
+    board = chess.Board(game_state.fen())
+    input_tensor = board_to_tensor(board)
+    with torch.no_grad():
+        prediction = model(input_tensor)[0].numpy()  # Dự đoán xác suất cho 4096 nước
+
+    best_score = -1
+    best_move = None
+
+    for move in valid_moves:
+        try:
+            start = move.start_row * 8 + move.start_col
+            end = move.end_row * 8 + move.end_col
+            move_index = start * 64 + end
+            score = prediction[move_index]
+            if score > best_score:
+                best_score = score
+                best_move = move
+        except:
+            continue
+
+    return best_move if best_move else random.choice(valid_moves)
+
 
 piece_score = {"K": 0, "Q": 9, "R": 5, "B": 3, "N": 3, "p": 1}
 
