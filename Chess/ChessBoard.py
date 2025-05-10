@@ -294,21 +294,12 @@ def main():
 
                 # AI move finder
                 if not game_over and not human_turn and not move_undone and mode_result == "player_vs_ai":
-                    if not ai_thinking:
-                        ai_thinking = True
-                        return_queue = Queue()
-                        move_finder_process = Process(target=ChessAI.findBestMove,
-                                                      args=(game_state, valid_moves, ai_level, return_queue))
-                        move_finder_process.start()
+                    # Sử dụng AI deep learning
+                    ai_move = ChessAI.findBestMoveFromModel(game_state, valid_moves)
+                    game_state.makeMove(ai_move)
+                    move_made = True
+                    animate = True
 
-                    if not move_finder_process.is_alive():
-                        ai_move = return_queue.get()
-                        if ai_move is None:
-                            ai_move = ChessAI.findRandomMove(valid_moves)
-                        game_state.makeMove(ai_move)
-                        move_made = True
-                        animate = True
-                        ai_thinking = False
 
                 if move_made:
                     if animate:
