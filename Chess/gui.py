@@ -5,23 +5,24 @@ import threading
 import subprocess
 import os
 import platform
-from PIL import Image, ImageTk # Thêm Pillow
+from PIL import Image, ImageTk
 
-# --- Cấu hình Engine ---
-ENGINE_PATH = "D:/AI/Chess/ChessApp/Chess/main1.py"
+
+ENGINE_PATH = "D:/AI/Chess/ChessApp/Chess/main.py"
 ENGINE_DIRECTORY = os.path.dirname(ENGINE_PATH)
-IMAGE_PATH = "images/" # Thư mục chứa ảnh quân cờ
+IMAGE_PATH = "images/"
 
-# --- Biến toàn cục ---
+
 board = chess.Board()
 selected_square = None
 human_player_color = chess.WHITE
 engine_process = None
-ui_board_size = 480 # Kích thước bàn cờ trên UI (ví dụ 60px/ô)
+ui_board_size = 480
 square_size = ui_board_size // 8
 
 
 piece_images = {}
+
 
 def load_piece_images():
     """Tải tất cả hình ảnh quân cờ và lưu vào piece_images."""
@@ -33,11 +34,13 @@ def load_piece_images():
             filename = f"{IMAGE_PATH}{color}{piece_type}.png"
             try:
                 img = Image.open(filename)
+
                 img = img.convert("RGBA")
                 img = img.resize((square_size - 5, square_size - 5), Image.Resampling.LANCZOS)
                 piece_images[f"{color}{piece_type}"] = ImageTk.PhotoImage(img)
             except FileNotFoundError:
                 print(f"Error: Image file not found: {filename}")
+
                 piece_images[f"{color}{piece_type}"] = None
             except Exception as e:
                 print(f"Error loading image {filename}: {e}")
@@ -48,7 +51,7 @@ def get_piece_image_key(piece):
     if not piece:
         return None
     color_char = 'w' if piece.color == chess.WHITE else 'b'
-    piece_char = piece.symbol().upper()
+    piece_char = piece.symbol().upper() # P, N, B, R, Q, K
     return f"{color_char}{piece_char}"
 
 
@@ -81,7 +84,9 @@ def start_engine():
             env=env
         )
 
-        for _ in range(10): # Thử đọc 10 dòng hoặc timeout
+        send_engine_command("uci")
+
+        for _ in range(10):
             line = engine_process.stdout.readline().strip()
             if not line and engine_process.poll() is not None: break # Engine đã dừng
             print(f"Engine init: {line}")
@@ -109,11 +114,12 @@ def send_engine_command(command):
         engine_process.stdin.flush()
     else:
         print("Engine process not running or has terminated.")
-        if not root.winfo_exists(): return
+        if not root.winfo_exists(): return # Tránh lỗi nếu root đã bị destroy
 
 def get_engine_move():
     if not engine_process or engine_process.poll() is not None:
         print("Engine not running or has terminated.")
+        # In lỗi từ stderr của engine
         if engine_process and engine_process.stderr:
             try:
                 stderr_output = engine_process.stderr.read()
@@ -168,16 +174,15 @@ def draw_board(canvas):
             x2, y2 = x1 + square_size, y1 + square_size
             canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="black")
 
-            # Vẽ quân cờ bằng ảnh
             piece = board.piece_at(sq_chess_notation)
             if piece:
                 img_key = get_piece_image_key(piece)
                 if img_key and piece_images.get(img_key):
-                    # Căn giữa ảnh trong ô
+
                     canvas.create_image(x1 + square_size // 2,
                                        y1 + square_size // 2,
                                        image=piece_images[img_key])
-                else: # Fallback nếu không có ảnh
+                else:
                     piece_symbol = piece.unicode_symbol()
                     font_size = square_size // 2
                     canvas.create_text(x1 + square_size // 2,
@@ -186,20 +191,19 @@ def draw_board(canvas):
                                        font=("Arial", font_size),
                                        fill="black" if piece.color == chess.WHITE else "dim gray")
 
-    # Đánh dấu ô đã chọn
+
     if selected_square is not None:
         r, f = chess.square_rank(selected_square), chess.square_file(selected_square)
         x1, y1 = f * square_size, (7 - r) * square_size
         x2, y2 = x1 + square_size, y1 + square_size
         canvas.create_rectangle(x1, y1, x2, y2, outline="blue", width=3, tags="selection")
 
-        # Đánh dấu các nước đi hợp lệ
         for move in board.legal_moves:
             if move.from_square == selected_square:
                 to_r, to_f = chess.square_rank(move.to_square), chess.square_file(move.to_square)
                 center_x = (to_f * square_size) + (square_size // 2)
                 center_y = ((7 - to_r) * square_size) + (square_size // 2)
-                radius = square_size // 8 # Bán kính của chấm tròn
+                radius = square_size // 8
                 if board.is_capture(move):
                     canvas.create_oval(center_x - radius, center_y - radius,
                                        center_x + radius, center_y + radius,
@@ -236,16 +240,16 @@ def on_square_click(event, canvas):
         if move in board.legal_moves:
             board.push(move)
             selected_square = None
-            draw_board(canvas) # Vẽ lại bàn cờ sau nước đi của người
+            draw_board(canvas)
             canvas.update()
             if not board.is_game_over():
                 root.after(100, lambda: make_engine_move(canvas))
-        else: # Click không hợp lệ hoặc vào ô khác của mình
+        else:
             piece_on_clicked_sq = board.piece_at(clicked_sq)
             if piece_on_clicked_sq and piece_on_clicked_sq.color == human_player_color:
-                selected_square = clicked_sq # Chọn quân khác của mình
+                selected_square = clicked_sq
             else:
-                selected_square = None # Bỏ chọn
+                selected_square = None
     draw_board(canvas)
 
 
@@ -263,6 +267,7 @@ def make_engine_move(canvas):
                     board.push(move)
                 else:
                     print(f"Engine proposed an illegal move: {engine_move_uci}. Board state: {board.fen()}")
+
             except ValueError as e:
                 print(f"Error parsing engine move {engine_move_uci}: {e}")
         root.after(0, lambda: after_engine_move_update(canvas))
@@ -309,7 +314,7 @@ def new_game():
     else:
         status_label.config(text="New game. Engine's turn (White).")
 
-    draw_board(board_canvas)
+    draw_board(board_canvas) # Vẽ bàn cờ trước
 
     if human_player_color == chess.BLACK and board.turn == chess.WHITE:
         root.after(100, lambda: make_engine_move(board_canvas))
@@ -327,7 +332,7 @@ def choose_side(color_str):
 root = tk.Tk()
 root.title("Habu Chess UI")
 
-
+# Tải ảnh quân cờ
 load_piece_images()
 
 board_canvas = tk.Canvas(root, width=ui_board_size, height=ui_board_size, bg="white")
@@ -373,7 +378,7 @@ if __name__ == "__main__":
     root.protocol("WM_DELETE_WINDOW", on_closing)
     root.mainloop()
 
-    # Đảm bảo engine được dừng khi UI đóng (dù có lỗi)
+
     if engine_process and engine_process.poll() is None:
         print("Terminating engine process forcibly...")
         engine_process.kill()
