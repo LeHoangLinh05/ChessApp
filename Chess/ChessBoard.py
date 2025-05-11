@@ -292,9 +292,7 @@ def main():
                             elif return_button_rect.collidepoint(mouse_pos):
                                 running = False
 
-                # AI move finder
                 if not game_over and not human_turn and not move_undone and mode_result == "player_vs_ai":
-                    # Sử dụng AI deep learning
                     ai_move = ChessAI.findBestMoveFromModel(game_state, valid_moves)
                     game_state.makeMove(ai_move)
                     move_made = True

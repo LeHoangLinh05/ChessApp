@@ -22,8 +22,15 @@ class GameState:
             ["--", "--", "--", "--", "--", "--", "--", "--"],
             ["wp", "wp", "wp", "wp", "wp", "wp", "wp", "wp"],
             ["wR", "wN", "wB", "wQ", "wK", "wB", "wN", "wR"]]
-        self.moveFunctions = {"p": self.getPawnMoves, "R": self.getRookMoves, "N": self.getKnightMoves,
-                              "B": self.getBishopMoves, "Q": self.getQueenMoves, "K": self.getKingMoves}
+        self.moveFunctions = {
+                'p': self.getPawnMoves,
+                'r': self.getRookMoves,
+                'n': self.getKnightMoves,
+                'b': self.getBishopMoves,
+                'q': self.getQueenMoves,
+                'k': self.getKingMoves
+            }
+
         self.white_to_move = True
         self.move_log = []
         self.undo_stack = []
@@ -39,7 +46,49 @@ class GameState:
         self.current_castling_rights = CastleRights(True, True, True, True)
         self.castle_rights_log = [CastleRights(self.current_castling_rights.wks, self.current_castling_rights.bks,
                                                self.current_castling_rights.wqs, self.current_castling_rights.bqs)]
+    
+    def fen(self):
+        fen_rows = []
+        for row in self.board:
+            fen_row = ""
+            empty = 0
+            for square in row:
+                if square == "--":
+                    empty += 1
+                else:
+                    if empty > 0:
+                        fen_row += str(empty)
+                        empty = 0
+                    piece = square[1].lower() if square[0] == "b" else square[1].upper()
+                    fen_row += piece
+            if empty > 0:
+                fen_row += str(empty)
+            fen_rows.append(fen_row)
 
+        board_part = "/".join(fen_rows)
+        turn_part = "w" if self.white_to_move else "b"
+
+        # Nhập thành (castling rights)
+        castle_rights = ""
+        if self.current_castling_rights.wks: castle_rights += "K"
+        if self.current_castling_rights.wqs: castle_rights += "Q"
+        if self.current_castling_rights.bks: castle_rights += "k"
+        if self.current_castling_rights.bqs: castle_rights += "q"
+        if castle_rights == "": castle_rights = "-"
+
+        # En passant square
+        en_passant = "-"
+        if self.enpassant_possible != ():
+            row, col = self.enpassant_possible
+            en_passant = f"{chr(col + 97)}{8 - row}"
+
+        # Halfmove clock & fullmove number (tạm đặt mặc định)
+        halfmove = 0
+        fullmove = 1
+
+        return f"{board_part} {turn_part} {castle_rights} {en_passant} {halfmove} {fullmove}"
+
+    
     def makeMove(self, move):
         """
         Takes a Move as a parameter and executes it.
@@ -295,7 +344,7 @@ class GameState:
             for col in range(len(self.board[row])):
                 piece = self.board[row][col]
                 if piece[0] == ("w" if self.white_to_move else "b"):  # Đúng màu quân cờ
-                    piece_type = piece[1]  # Lấy loại quân ('p', 'R', 'N', 'B', 'Q', 'K')
+                    piece_type = piece[1].lower()  # Lấy loại quân ('p', 'R', 'N', 'B', 'Q', 'K')
                     if exclude_king and piece_type == "K":  # Bỏ qua nước đi của Vua nếu cần
                         continue
                     self.moveFunctions[piece_type](row, col, moves)  # Gọi hàm tương ứng dựa trên loại quân
@@ -667,6 +716,10 @@ class Move:
                 return self.piece_moved[1] + self.getRankFile(self.end_row, self.end_col)
 
         # TODO Disambiguating moves
+        
+    def getChessNotationUCI(self):
+        return self.getRankFile(self.start_row, self.start_col) + self.getRankFile(self.end_row, self.end_col)
+
 
     def getRankFile(self, row, col):
         return self.cols_to_files[col] + self.rows_to_ranks[row]

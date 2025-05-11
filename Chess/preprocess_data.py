@@ -1,5 +1,5 @@
 import chess
-import chess.pgn  # Đảm bảo import đúng chess.pgn
+import chess.pgn  
 import numpy as np
 import os
 
@@ -17,9 +17,8 @@ def fen_to_vector(fen):
 
 def move_to_output(move):
     try:
-        # Xử lý phong cấp (promote) nếu có
         if len(move) > 4:
-            move = move[:4]  # Chỉ lấy nước đi cơ bản (bỏ ký tự phong cấp)
+            move = move[:4]  
 
         start_square = chess.parse_square(move[:2])
         end_square = chess.parse_square(move[2:])
@@ -29,7 +28,7 @@ def move_to_output(move):
         return output
     except ValueError:
         print(f"Bỏ qua nước đi không hợp lệ: {move}")
-        return None  # Nước đi không hợp lệ sẽ bị bỏ qua
+        return None  
 
 def process_pgn_files(input_folder, output_file, batch_size=5000):
     X_data = []
@@ -53,14 +52,12 @@ def process_pgn_files(input_folder, output_file, batch_size=5000):
                             X_data.append(fen_to_vector(board.fen()))
                             y_data.append(move_vector)
 
-                        # Khi đạt batch size, lưu lại dữ liệu
+                        
                         if len(X_data) >= batch_size:
                             save_batch(X_data, y_data, output_file, batch_count)
                             X_data = []
                             y_data = []
                             batch_count += 1
-
-    # Lưu lại dữ liệu cuối cùng nếu còn
     if X_data:
         save_batch(X_data, y_data, output_file, batch_count)
 
@@ -72,5 +69,9 @@ def save_batch(X_data, y_data, output_file, batch_count):
     np.savez_compressed(f"{output_file}_batch_{batch_count}.npz", X=X_data, y=y_data)
     print(f"Lưu batch {batch_count}: {len(X_data)} mẫu.")
 
-# Sử dụng
-process_pgn_files(r"D:\KieuQuy\Documents\AI\Chess\Chess\dataset_pgns", "chess_training_data", batch_size=5000)
+process_pgn_files(
+    r"D:\KieuQuy\Documents\AI\Chess\Chess\dataset_pgns",
+    r"D:\KieuQuy\Documents\AI\Chess\Chess\train_models\chess_training_data",
+    batch_size=5000
+)
+
